@@ -19,12 +19,14 @@ use frame_system as system;
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_api::impl_runtime_apis;
 use sp_core::{OpaqueMetadata, H256};
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT, IdentifyAccount, IdentityLookup, Verify};
+use sp_runtime::traits::{BlakeTwo256, Block as BlockT, IdentifyAccount, IdentityLookup, Verify, ConvertInto, OpaqueKeys};
 use sp_runtime::{
 	create_runtime_str, generic,
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, MultiSignature,
+	impl_opaque_keys,
 };
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_std::prelude::*;
 
 #[cfg(feature = "std")]
@@ -84,6 +86,12 @@ pub mod opaque {
 	pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 	/// Opaque block identifier type.
 	pub type BlockId = generic::BlockId<Block>;
+}
+
+impl_opaque_keys! {
+	pub struct SessionKeys {
+		pub authority_discovery: AuthorityDiscovery,
+	}
 }
 
 /// This runtime version.
@@ -199,6 +207,8 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = ();
 }
 
+impl pallet_authority_discovery::Config for Runtime {}
+
 parameter_types! {
 	pub const TransactionByteFee: u128 = 1;
 }
@@ -213,6 +223,27 @@ impl pallet_transaction_payment::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
+}
+
+parameter_types! {
+	pub const Period: u32 = 30;
+	pub const Offset: u32 = 0;
+	pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(33);
+}
+
+impl pallet_session::Config for Runtime {
+	type Event = Event;
+	type ValidatorId = <Self as frame_system::Config>::AccountId;
+	type ValidatorIdOf = ConvertInto;
+	// we don't have stash and controller, thus we don't need the convert as well.
+	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
+	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+	type SessionManager = ();
+	// Essentially just Aura, but let's be pedantic.
+	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+	type Keys = SessionKeys;
+	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+	type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
 }
 
 // ---------------------- Recipe Pallet Configurations ----------------------
@@ -352,6 +383,8 @@ construct_runtime!(
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Call, Storage},
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
+		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
+		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
 		// The Recipe Pallets
 		BasicToken: basic_token::{Module, Call, Storage, Event<T>},
 		Charity: charity::{Module, Call, Storage, Config, Event<T>},
@@ -465,6 +498,12 @@ impl_runtime_apis! {
 	impl sp_offchain::OffchainWorkerApi<Block> for Runtime {
 		fn offchain_worker(header: &<Block as BlockT>::Header) {
 			Executive::offchain_worker(header)
+		}
+	}
+
+	impl sp_authority_discovery::AuthorityDiscoveryApi<Block> for Runtime {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			AuthorityDiscovery::authorities()
 		}
 	}
 

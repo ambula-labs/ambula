@@ -25,12 +25,15 @@ sp-io = { version = '3.0', default-features = false }
 sp-offchain = { version = '3.0', default-features = false }
 sp-runtime = { version = '3.0', default-features = false }
 sp-session = { version = '3.0', default-features = false }
+sp-authority-discovery = { version = '3.0', default-features = false }
 sp-std = { version = '3.0', default-features = false }
 sp-transaction-pool = { version = '3.0', default-features = false }
 sp-version = { version = '3.0', default-features = false }
 pallet-sudo = { version = '3.0', default-features = false }
+pallet-session = { version = '3.0', default-features = false }
 pallet-timestamp = { version = '3.0', default-features = false }
 pallet-transaction-payment = { version = '3.0', default-features = false }
+pallet-authority-discovery = { version = '3.0', default-features = false }
 
 # local packages
  basic-token = { path = "../../pallets/basic-token", default-features = false }
@@ -100,7 +103,9 @@ std = [
 	"storage-cache/std",
 	"struct-storage/std",
 	"pallet-sudo/std",
+	"pallet-session/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment/std",
 	"vec-set/std",
+	"pallet-authority-discovery/std",
 ]

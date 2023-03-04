@@ -54,6 +54,8 @@ pub fn testnet_genesis(
 				.map(|k| (k, 1 << 60))
 				.collect(),
 		}),
+		pallet_session: None, // TODO
+		pallet_authority_discovery: None, // TODO
 		pallet_sudo: Some(SudoConfig { key: root_key }),
 		charity: Some(Default::default()),
 	}

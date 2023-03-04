@@ -52,7 +52,7 @@ pub fn new_partial(
 			Arc<FullClient>,
 			FullClient,
 			FullSelectChain,
-			MinimalSha3Algorithm,
+			MinimalSha3Algorithm<FullClient>,
 			impl sp_consensus::CanAuthorWith<Block>,
 		>,
 	>,
@@ -76,10 +76,12 @@ pub fn new_partial(
 
 	let can_author_with = sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
+	let pow_algorithm = sha3pow::MinimalSha3Algorithm::new(client.clone());
+
 	let pow_block_import = sc_consensus_pow::PowBlockImport::new(
 		client.clone(),
 		client.clone(),
-		sha3pow::MinimalSha3Algorithm,
+		pow_algorithm.clone(),
 		0, // check inherents starting at block 0
 		select_chain.clone(),
 		inherent_data_providers.clone(),
@@ -89,7 +91,7 @@ pub fn new_partial(
 	let import_queue = sc_consensus_pow::import_queue(
 		Box::new(pow_block_import.clone()),
 		None,
-		sha3pow::MinimalSha3Algorithm,
+		pow_algorithm.clone(),
 		inherent_data_providers.clone(),
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
@@ -176,11 +178,13 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		//   https://substrate.dev/rustdocs/v3.0.0/sc_consensus_pow/fn.start_mining_worker.html
 		// Also refer to kulupu config:
 		//   https://github.com/kulupu/kulupu/blob/master/src/service.rs
+		let pow_algorithm = sha3pow::MinimalSha3Algorithm::new(client.clone());
+
 		let (_worker, worker_task) = sc_consensus_pow::start_mining_worker(
 			Box::new(pow_block_import),
-			client,
+			client.clone(),
 			select_chain,
-			MinimalSha3Algorithm,
+			pow_algorithm.clone(),
 			proposer,
 			network,
 			None,
@@ -207,7 +211,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 					pre_hash: metadata.pre_hash,
 					nonce,
 				};
-				let seal = compute.compute();
+				let seal = compute.compute(client.clone(), metadata.best_hash);
 				if hash_meets_difficulty(&seal.work, seal.difficulty) {
 					nonce = U256::from(0);
 					let mut worker = worker.lock();
@@ -246,10 +250,13 @@ pub fn new_light(config: Configuration) -> Result<TaskManager, ServiceError> {
 	// FixMe #375
 	let _can_author_with = sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
+	let pow_algorithm = sha3pow::MinimalSha3Algorithm::new(client.clone());
+
+
 	let pow_block_import = sc_consensus_pow::PowBlockImport::new(
 		client.clone(),
 		client.clone(),
-		sha3pow::MinimalSha3Algorithm,
+		pow_algorithm.clone(),
 		0, // check inherents starting at block 0
 		select_chain,
 		inherent_data_providers.clone(),
@@ -260,7 +267,7 @@ pub fn new_light(config: Configuration) -> Result<TaskManager, ServiceError> {
 	let import_queue = sc_consensus_pow::import_queue(
 		Box::new(pow_block_import),
 		None,
-		sha3pow::MinimalSha3Algorithm,
+		pow_algorithm.clone(),
 		inherent_data_providers,
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),

@@ -36,6 +36,7 @@ sp-inherents = '3.0'
 sp-runtime = '3.0'
 sp-timestamp = '3.0'
 sp-transaction-pool = '3.0'
+sp-authority-discovery = '3.0'
 
 # local packages
 sha3pow = { path = '../../consensus/sha3pow' }

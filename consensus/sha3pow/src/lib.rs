@@ -1,8 +1,11 @@
+use jsonrpc::simple_http::{self, SimpleHttpTransport};
+use jsonrpc::Client;
 use parity_scale_codec::{Decode, Encode};
 use sc_consensus_pow::{Error, PowAlgorithm};
 use sha3::{Digest, Sha3_256};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_pow::{DifficultyApi, Seal as RawSeal};
+use sp_authority_discovery::AuthorityDiscoveryApi;
 use sp_core::{H256, U256};
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Block as BlockT;
@@ -37,9 +40,43 @@ pub struct Compute {
 	pub nonce: U256,
 }
 
+fn client(url: &str) -> Result<Client, simple_http::Error> {
+	let t = SimpleHttpTransport::builder().url(url)?.build();
+
+	Ok(Client::with_transport(t))
+}
+
 impl Compute {
-	pub fn compute(self) -> Seal {
+	pub fn compute<C, B: BlockT<Hash = H256>>(self, sc_client: Arc<C>, _block_hash: B::Hash) -> Seal
+	where
+		C: ProvideRuntimeApi<B>,
+		C::Api: AuthorityDiscoveryApi<B>,
+	{
 		let work = H256::from_slice(Sha3_256::digest(&self.encode()[..]).as_slice());
+
+		let client =
+			client("http://api.random.org/json-rpc/1/invoke").expect("failed to create client");
+		let request = client.build_request("uptime", &[]);
+		let response = client.send_request(request).expect("send_request failed");
+
+		sc_client
+			.runtime_api();
+			// difficulty(&parent_id)
+			// .map_err(|err| {
+			// 	sc_consensus_pow::Error::Environment(format!(
+			// 		"Fetching difficulty from runtime failed: {:?}",
+			// 		err
+			// 	))
+			// });
+
+		// For other commands this would be a struct matching the returned json.
+		let result: u64 = response
+			.result()
+			.expect("response is an error, use check_error");
+
+		println!("bitcoind uptime: {}", result);
+
+		let _api_response = "pipomolo".to_owned();
 
 		Seal {
 			nonce: self.nonce,
@@ -51,11 +88,26 @@ impl Compute {
 
 /// A minimal PoW algorithm that uses Sha3 hashing.
 /// Difficulty is fixed at 1_000_000
-#[derive(Clone)]
-pub struct MinimalSha3Algorithm;
+pub struct MinimalSha3Algorithm<C> {
+	client: Arc<C>,
+}
+
+impl<C> MinimalSha3Algorithm<C> {
+	pub fn new(client: Arc<C>) -> Self {
+		Self { client }
+	}
+}
+
+// Manually implement clone. Deriving doesn't work because
+// it'll derive impl<C: Clone> Clone for Sha3Algorithm<C>. But C in practice isn't Clone.
+impl<C> Clone for MinimalSha3Algorithm<C> {
+	fn clone(&self) -> Self {
+		Self::new(self.client.clone())
+	}
+}
 
 // Here we implement the general PowAlgorithm trait for our concrete Sha3Algorithm
-impl<B: BlockT<Hash = H256>> PowAlgorithm<B> for MinimalSha3Algorithm {
+impl<B: BlockT<Hash = H256>, C> PowAlgorithm<B> for MinimalSha3Algorithm<C> {
 	type Difficulty = U256;
 
 	fn difficulty(&self, _parent: B::Hash) -> Result<Self::Difficulty, Error<B>> {
@@ -66,7 +118,7 @@ impl<B: BlockT<Hash = H256>> PowAlgorithm<B> for MinimalSha3Algorithm {
 	fn verify(
 		&self,
 		_parent: &BlockId<B>,
-		pre_hash: &H256,
+		_pre_hash: &H256,
 		_pre_digest: Option<&[u8]>,
 		seal: &RawSeal,
 		difficulty: Self::Difficulty,
@@ -83,15 +135,15 @@ impl<B: BlockT<Hash = H256>> PowAlgorithm<B> for MinimalSha3Algorithm {
 		}
 
 		// Make sure the provided work actually comes from the correct pre_hash
-		let compute = Compute {
-			difficulty,
-			pre_hash: *pre_hash,
-			nonce: seal.nonce,
-		};
+		// let compute = Compute {
+		// 	difficulty,
+		// 	pre_hash: *pre_hash,
+		// 	nonce: seal.nonce,
+		// };
 
-		if compute.compute() != seal {
-			return Ok(false);
-		}
+		// if compute.compute().await != seal {
+		// 	return Ok(false);
+		// }
 
 		Ok(true)
 	}
@@ -141,7 +193,7 @@ where
 	fn verify(
 		&self,
 		_parent: &BlockId<B>,
-		pre_hash: &H256,
+		_pre_hash: &H256,
 		_pre_digest: Option<&[u8]>,
 		seal: &RawSeal,
 		difficulty: Self::Difficulty,
@@ -158,15 +210,15 @@ where
 		}
 
 		// Make sure the provided work actually comes from the correct pre_hash
-		let compute = Compute {
-			difficulty,
-			pre_hash: *pre_hash,
-			nonce: seal.nonce,
-		};
+		// let compute = Compute {
+		// 	difficulty,
+		// 	pre_hash: *pre_hash,
+		// 	nonce: seal.nonce,
+		// };
 
-		if compute.compute() != seal {
-			return Ok(false);
-		}
+		// if compute.compute() != seal {
+		// 	return Ok(false);
+		// }
 
 		Ok(true)
 	}

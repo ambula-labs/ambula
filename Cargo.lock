@@ -467,6 +467,7 @@ dependencies = [
  "sha3 0.8.2",
  "sha3pow",
  "sp-api",
+ "sp-authority-discovery",
  "sp-blockchain",
  "sp-consensus",
  "sp-core",
@@ -2454,6 +2455,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonrpc"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "248ea3eab5d9a37ee324b1f576f19d274ff7e56cd5206ea4755a7ef918e94fa4"
+dependencies = [
+ "base64 0.13.0",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "jsonrpc-client-transports"
 version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3783,6 +3795,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ff55baddef9e4ad00f88b6c743a2a8062d4c6ade126c2a528644b8e444d52ce"
 dependencies = [
  "stable_deref_trait",
+]
+
+[[package]]
+name = "pallet-authority-discovery"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4510a281dae0c246c736fac1e1d51bf938db001b22265128ba6f918bc4e13e1"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-session",
+ "parity-scale-codec 2.0.1",
+ "serde",
+ "sp-application-crypto",
+ "sp-authority-discovery",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6203,11 +6232,13 @@ dependencies = [
 name = "sha3pow"
 version = "3.0.0"
 dependencies = [
+ "jsonrpc",
  "parity-scale-codec 2.0.1",
  "rand 0.8.3",
  "sc-consensus-pow",
  "sha3 0.9.1",
  "sp-api",
+ "sp-authority-discovery",
  "sp-consensus-pow",
  "sp-core",
  "sp-runtime",
@@ -6440,6 +6471,19 @@ dependencies = [
  "parity-scale-codec 2.0.1",
  "serde",
  "sp-debug-derive",
+ "sp-std",
+]
+
+[[package]]
+name = "sp-authority-discovery"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1031aceddda89a70b5dd888f177e1dbfccfb8889c43d0103a54edd3220d2ddce"
+dependencies = [
+ "parity-scale-codec 2.0.1",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-runtime",
  "sp-std",
 ]
 
@@ -7285,8 +7329,10 @@ dependencies = [
  "hello-substrate",
  "last-caller",
  "map-set",
+ "pallet-authority-discovery",
  "pallet-balances",
  "pallet-randomness-collective-flip",
+ "pallet-session",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
@@ -7299,6 +7345,7 @@ dependencies = [
  "simple-event",
  "simple-map",
  "sp-api",
+ "sp-authority-discovery",
  "sp-block-builder",
  "sp-core",
  "sp-inherents",

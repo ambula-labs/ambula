@@ -11,6 +11,7 @@ license = "GPL-3.0-or-later"
 parity-scale-codec = '2.0'
 rand = { version = "0.8", features = ["small_rng"] }
 sha3 = "0.9"
+jsonrpc = "0.14.0"
 
 # Substrate packages
 sc-consensus-pow = '0.9'
@@ -18,3 +19,4 @@ sp-api = '3.0'
 sp-consensus-pow = '0.9'
 sp-core = '3.0'
 sp-runtime = '3.0'
+sp-authority-discovery = '3.0'

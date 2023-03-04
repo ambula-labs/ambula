@@ -1,6 +1,6 @@
 //! Helper module to build a genesis configuration for the super-runtime
 
-use super::{AccountId, BalancesConfig, GenesisConfig, Signature, SudoConfig, SystemConfig};
+use super::{AccountId, AuthorityDiscoveryId, BalancesConfig, GenesisConfig, Signature, SudoConfig, SystemConfig, SessionConfig, AuthorityDiscoveryConfig};
 use sp_core::{sr25519, Pair};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 
@@ -21,17 +21,29 @@ where
 	AccountPublic::from(get_from_seed::<TPair>(seed)).into_account()
 }
 
+fn session_keys(authority_discovery: AuthorityDiscoveryId) -> SessionKeys {
+	SessionKeys { authority_discovery }
+}
+
+pub fn authority_keys_from_seed(s: &str) -> (AccountId, AuthorityDiscoveryId) {
+	(
+		account_id_from_seed::<sr25519::Public>(s),
+		get_from_seed::<AuthorityDiscoveryId>(s),
+	)
+}
+
 pub fn dev_genesis(wasm_binary: &[u8]) -> GenesisConfig {
 	testnet_genesis(
 		wasm_binary,
+		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
 		// Root Key
 		account_id_from_seed::<sr25519::Pair>("Alice"),
 		// Endowed Accounts
 		vec![
 			account_id_from_seed::<sr25519::Pair>("Alice"),
 			account_id_from_seed::<sr25519::Pair>("Bob"),
-			account_id_from_seed::<sr25519::Pair>("Alice//stash"),
-			account_id_from_seed::<sr25519::Pair>("Bob//stash"),
+			account_id_from_seed::<sr25519::Pair>("Mike"),
+			account_id_from_seed::<sr25519::Pair>("John"),
 		],
 	)
 }
@@ -39,6 +51,7 @@ pub fn dev_genesis(wasm_binary: &[u8]) -> GenesisConfig {
 /// Helper function to build a genesis configuration
 pub fn testnet_genesis(
 	wasm_binary: &[u8],
+	initial_authorities: Vec<(AccountId, AuthorityDiscoveryId)>,
 	root_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
 ) -> GenesisConfig {
@@ -54,9 +67,16 @@ pub fn testnet_genesis(
 				.map(|k| (k, 1 << 60))
 				.collect(),
 		}),
-		pallet_session: None, // TODO
-		pallet_authority_discovery: None, // TODO
+		pallet_session: Some(SessionConfig {
+			keys: initial_authorities
+			.iter()
+			.map(|x| {
+				(x.0.clone(), x.0.clone(), session_keys(x.1.clone()))
+			}).collect::<Vec<_>>(),
+		}),
+		pallet_authority_discovery: Some(AuthorityDiscoveryConfig {
+			keys: vec![],
+		}),
 		pallet_sudo: Some(SudoConfig { key: root_key }),
-		charity: Some(Default::default()),
 	}
 }

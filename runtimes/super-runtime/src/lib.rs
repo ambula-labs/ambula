@@ -252,11 +252,6 @@ impl basic_token::Config for Runtime {
 	type Event = Event;
 }
 
-impl charity::Config for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-}
-
 impl compounding_interest::Config for Runtime {
 	type Event = Event;
 }
@@ -387,7 +382,6 @@ construct_runtime!(
 		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
 		// The Recipe Pallets
 		BasicToken: basic_token::{Module, Call, Storage, Event<T>},
-		Charity: charity::{Module, Call, Storage, Config, Event<T>},
 		CheckMembershipLoose: check_membership_loose::{Module, Call, Event<T>},
 		CheckMembershipTight: check_membership_tight::{Module, Call, Event<T>},
 		CompoundingInterest: compounding_interest::{Module, Call, Storage, Event},

@@ -1,5 +1,5 @@
 use runtime::{
-	genesis::{account_id_from_seed, dev_genesis, testnet_genesis, authority_keys_from_seed},
+	genesis::{get_account_id_from_seed, dev_genesis, testnet_genesis, authority_keys_from_seed},
 	GenesisConfig, WASM_BINARY,
 };
 use sp_core::sr25519;
@@ -38,14 +38,14 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 				wasm_binary,
 				vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
 				// Root Key
-				account_id_from_seed::<sr25519::Pair>("Alice"),
+				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				vec![
-					account_id_from_seed::<sr25519::Pair>("Alice"),
-					account_id_from_seed::<sr25519::Pair>("Bob"),
-					account_id_from_seed::<sr25519::Pair>("Charlie"),
-					account_id_from_seed::<sr25519::Pair>("Dave"),
-					account_id_from_seed::<sr25519::Pair>("Eve"),
-					account_id_from_seed::<sr25519::Pair>("Ferdie"),
+					get_account_id_from_seed::<sr25519::Public>("Alice"),
+					get_account_id_from_seed::<sr25519::Public>("Bob"),
+					get_account_id_from_seed::<sr25519::Public>("Charlie"),
+					get_account_id_from_seed::<sr25519::Public>("Dave"),
+					get_account_id_from_seed::<sr25519::Public>("Eve"),
+					get_account_id_from_seed::<sr25519::Public>("Ferdie"),
 				],
 			)
 		},

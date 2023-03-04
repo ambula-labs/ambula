@@ -1,49 +1,51 @@
 //! Helper module to build a genesis configuration for the super-runtime
 
-use super::{AccountId, AuthorityDiscoveryId, BalancesConfig, GenesisConfig, Signature, SudoConfig, SystemConfig, SessionConfig, AuthorityDiscoveryConfig};
-use sp_core::{sr25519, Pair};
+use super::{AccountId, AuthorityDiscoveryId, BalancesConfig, GenesisConfig, SessionKeys, Signature, SudoConfig, SystemConfig, SessionConfig, AuthorityDiscoveryConfig};
+use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 
-/// Helper function to generate a crypto pair from seed
-fn get_from_seed<TPair: Pair>(seed: &str) -> TPair::Public {
-	TPair::from_string(&format!("//{}", seed), None)
+/// Generate a crypto pair from seed.
+pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
+	TPublic::Pair::from_string(&format!("//{}", seed), None)
 		.expect("static values are valid; qed")
 		.public()
 }
 
 type AccountPublic = <Signature as Verify>::Signer;
 
-/// Helper function to generate an account ID from seed
-pub fn account_id_from_seed<TPair: Pair>(seed: &str) -> AccountId
-where
-	AccountPublic: From<TPair::Public>,
+/// Generate an account ID from seed.
+pub fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId where
+	AccountPublic: From<<TPublic::Pair as Pair>::Public>
 {
-	AccountPublic::from(get_from_seed::<TPair>(seed)).into_account()
+	AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
+
+/// Generate an Aura authority key.
+pub fn authority_keys_from_seed(s: &str) -> (AccountId, AuthorityDiscoveryId) {
+	(
+		get_account_id_from_seed::<sr25519::Public>(s),
+		get_from_seed::<AuthorityDiscoveryId>(s),
+	)
+}
+
 
 fn session_keys(authority_discovery: AuthorityDiscoveryId) -> SessionKeys {
 	SessionKeys { authority_discovery }
 }
 
-pub fn authority_keys_from_seed(s: &str) -> (AccountId, AuthorityDiscoveryId) {
-	(
-		account_id_from_seed::<sr25519::Public>(s),
-		get_from_seed::<AuthorityDiscoveryId>(s),
-	)
-}
 
 pub fn dev_genesis(wasm_binary: &[u8]) -> GenesisConfig {
 	testnet_genesis(
 		wasm_binary,
 		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
 		// Root Key
-		account_id_from_seed::<sr25519::Pair>("Alice"),
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		// Endowed Accounts
 		vec![
-			account_id_from_seed::<sr25519::Pair>("Alice"),
-			account_id_from_seed::<sr25519::Pair>("Bob"),
-			account_id_from_seed::<sr25519::Pair>("Mike"),
-			account_id_from_seed::<sr25519::Pair>("John"),
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
+			get_account_id_from_seed::<sr25519::Public>("Mike"),
+			get_account_id_from_seed::<sr25519::Public>("John"),
 		],
 	)
 }

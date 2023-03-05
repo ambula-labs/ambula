@@ -1,15 +1,18 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 #![allow(clippy::needless_borrow)]
+use futures::channel::mpsc::channel;
 use runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{ExecutorProvider, RemoteBackend};
 use sc_executor::native_executor_instance;
 pub use sc_executor::NativeExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, TaskManager};
 use sha3pow::*;
-use sp_api::TransactionFor;
+use sp_api::{ProvideRuntimeApi, TransactionFor};
+use sp_authority_discovery::AuthorityDiscoveryApi;
 use sp_consensus::import_queue::BasicQueue;
 use sp_core::{Encode, U256};
 use sp_inherents::InherentDataProviders;
+use sp_runtime::generic::BlockId;
 use std::thread;
 use std::{sync::Arc, time::Duration};
 
@@ -178,6 +181,22 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		//   https://substrate.dev/rustdocs/v3.0.0/sc_consensus_pow/fn.start_mining_worker.html
 		// Also refer to kulupu config:
 		//   https://github.com/kulupu/kulupu/blob/master/src/service.rs
+
+		let (_dht_event_tx, dht_event_rx) = channel(0); // TODO change this placeholder ?
+
+		let (_discovery_worker, _discovery_service) =
+			sc_authority_discovery::new_worker_and_service(
+				client.clone(),
+				network.clone(),
+				Box::pin(dht_event_rx),
+				sc_authority_discovery::Role::PublishAndDiscover(keystore_container.keystore()),
+				None,
+			);
+
+		task_manager
+			.spawn_essential_handle()
+			.spawn_blocking("authority_discovery", _discovery_worker.run());
+
 		let pow_algorithm = sha3pow::MinimalSha3Algorithm::new(client.clone());
 
 		let (_worker, worker_task) = sc_consensus_pow::start_mining_worker(
@@ -205,7 +224,15 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		thread::spawn(move || loop {
 			let worker = _worker.clone();
 			let metadata = worker.lock().metadata();
+			// let first_authority_ip = block_on(discovery_service.get_addresses_by_authority_id(authorities[0].0));
+
 			if let Some(metadata) = metadata {
+				let _authorities = client
+					.clone()
+					.runtime_api()
+					.authorities(&BlockId::hash(metadata.best_hash))
+					.unwrap(); // TODO make the authorities method work -> add AuthorityDiscoveryApi trait
+
 				let compute = Compute {
 					difficulty: metadata.difficulty,
 					pre_hash: metadata.pre_hash,
@@ -251,7 +278,6 @@ pub fn new_light(config: Configuration) -> Result<TaskManager, ServiceError> {
 	let _can_author_with = sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 	let pow_algorithm = sha3pow::MinimalSha3Algorithm::new(client.clone());
-
 
 	let pow_block_import = sc_consensus_pow::PowBlockImport::new(
 		client.clone(),

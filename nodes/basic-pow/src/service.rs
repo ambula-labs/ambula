@@ -1,6 +1,6 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 #![allow(clippy::needless_borrow)]
-use futures::channel::mpsc::channel;
+use futures::executor::block_on;
 use runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{ExecutorProvider, RemoteBackend};
 use sc_executor::native_executor_instance;
@@ -15,6 +15,8 @@ use sp_inherents::InherentDataProviders;
 use sp_runtime::generic::BlockId;
 use std::thread;
 use std::{sync::Arc, time::Duration};
+use sc_network::Event;
+use futures::StreamExt;
 
 // Our native executor instance.
 native_executor_instance!(
@@ -182,20 +184,26 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		// Also refer to kulupu config:
 		//   https://github.com/kulupu/kulupu/blob/master/src/service.rs
 
-		let (_dht_event_tx, dht_event_rx) = channel(0); // TODO change this placeholder ?
+		let dht_event_stream =
+			network.event_stream("authority-discovery").filter_map(|e| async move {
+				match e {
+					Event::Dht(e) => Some(e),
+					_ => None,
+				}
+			});
 
-		let (_discovery_worker, _discovery_service) =
+		let (mut _discovery_worker, mut _discovery_service) =
 			sc_authority_discovery::new_worker_and_service(
 				client.clone(),
 				network.clone(),
-				Box::pin(dht_event_rx),
+				Box::pin(dht_event_stream),
 				sc_authority_discovery::Role::PublishAndDiscover(keystore_container.keystore()),
 				None,
 			);
 
 		task_manager
 			.spawn_essential_handle()
-			.spawn_blocking("authority_discovery", _discovery_worker.run());
+			.spawn_blocking("authority_discovery", Box::pin(_discovery_worker.run()));
 
 		let pow_algorithm = sha3pow::MinimalSha3Algorithm::new(client.clone());
 
@@ -224,14 +232,23 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		thread::spawn(move || loop {
 			let worker = _worker.clone();
 			let metadata = worker.lock().metadata();
-			// let first_authority_ip = block_on(discovery_service.get_addresses_by_authority_id(authorities[0].0));
 
 			if let Some(metadata) = metadata {
-				let _authorities = client
+				let authorities = client
 					.clone()
 					.runtime_api()
 					.authorities(&BlockId::hash(metadata.best_hash))
-					.unwrap(); // TODO make the authorities method work -> add AuthorityDiscoveryApi trait
+					.unwrap();
+
+				println!("Authorities: {:?}", authorities);
+
+				// TODO: make discovery work
+
+				let first_authority_ip = block_on(_discovery_service.get_addresses_by_authority_id(authorities[0].clone()));
+				println!("First authority multiaddr: {:?}", first_authority_ip);
+
+				let second_authority_ip = block_on(_discovery_service.get_addresses_by_authority_id(authorities[1].clone()));
+				println!("Second authority multiaddr: {:?}", second_authority_ip);
 
 				let compute = Compute {
 					difficulty: metadata.difficulty,
@@ -249,6 +266,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 						nonce = U256::from(0);
 					}
 				}
+				thread::sleep(Duration::new(1, 0));
 			} else {
 				thread::sleep(Duration::new(1, 0));
 			}

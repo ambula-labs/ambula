@@ -60,7 +60,7 @@ impl Compute {
 		let authorities = sc_client
 			.runtime_api().authorities(&parent_id).unwrap();
 
-		println!("PoW authorities: {:?}", authorities);
+		println!("PoW authorities: {:?}", authorities[0]);
 
 		// let client =
 		// 	_client("http://api.random.org/json-rpc/1/invoke").expect("failed to create client");

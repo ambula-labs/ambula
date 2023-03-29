@@ -1,11 +1,8 @@
-use jsonrpc::simple_http::{self, SimpleHttpTransport};
-use jsonrpc::Client;
 use parity_scale_codec::{Decode, Encode};
 use sc_consensus_pow::{Error, PowAlgorithm};
 use sha3::{Digest, Sha3_256};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_pow::{DifficultyApi, Seal as RawSeal};
-use sp_authority_discovery::{AuthorityDiscoveryApi, AuthorityId};
 use sp_core::{H256, U256};
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Block as BlockT;
@@ -27,54 +24,28 @@ pub fn hash_meets_difficulty(hash: &H256, difficulty: U256) -> bool {
 #[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
 pub struct Seal {
 	pub difficulty: U256,
-	pub signature: H256,
-	pub peer: U256,
+	pub work: H256,
+	pub nonce: U256,
 }
 
 /// A not-yet-computed attempt to solve the proof of work. Calling the
 /// compute method will compute the hash and return the seal.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
-pub struct Interact {
-	pub message: H256,
-	pub peer: H256,
+pub struct Compute {
+	pub difficulty: U256,
+	pub pre_hash: H256,
+	pub nonce: U256,
 }
 
-fn _client(url: &str) -> Result<Client, simple_http::Error> {
-	let t = SimpleHttpTransport::builder().url(url)?.build();
-
-	Ok(Client::with_transport(t))
-}
-
-impl Interact {
-	pub fn compute<C, B: BlockT<Hash = H256>>(self, sc_client: Arc<C>, at: B::Hash) -> Seal
-	where
-		C: ProvideRuntimeApi<B>,
-		C::Api: AuthorityDiscoveryApi<B>,
+impl Compute {
+	pub fn compute(self) -> Seal
 	{
 		let work = H256::from_slice(Sha3_256::digest(&self.encode()[..]).as_slice());
-
-		let authorities = sc_client
-			.runtime_api().authorities(at).unwrap();
-
-		// println!("PoW authorities: {:?}", authorities[0]);
-
-		// let client =
-		// 	_client("http://api.random.org/json-rpc/1/invoke").expect("failed to create client");
-		// let request = client.build_request("uptime", &[]);
-		// let response = client.send_request(request).expect("send_request failed");
-
-		// // For other commands this would be a struct matching the returned json.
-		// let result: u64 = response
-		// 	.result()
-		// 	.expect("response is an error, use check_error");
-
-		// println!("bitcoind uptime: {}", result);
 
 		Seal {
 			nonce: self.nonce,
 			difficulty: self.difficulty,
 			work,
-			authorities,
 		}
 	}
 }
@@ -111,7 +82,7 @@ impl<B: BlockT<Hash = H256>, C> PowAlgorithm<B> for MinimalSha3Algorithm<C> {
 	fn verify(
 		&self,
 		_parent: &BlockId<B>,
-		_pre_hash: &H256,
+		pre_hash: &H256,
 		_pre_digest: Option<&[u8]>,
 		seal: &RawSeal,
 		difficulty: Self::Difficulty,
@@ -128,15 +99,15 @@ impl<B: BlockT<Hash = H256>, C> PowAlgorithm<B> for MinimalSha3Algorithm<C> {
 		}
 
 		// Make sure the provided work actually comes from the correct pre_hash
-		// let compute = Compute {
-		// 	difficulty,
-		// 	pre_hash: *pre_hash,
-		// 	nonce: seal.nonce,
-		// };
+		let compute = Compute {
+			difficulty,
+			pre_hash: *pre_hash,
+			nonce: seal.nonce,
+		};
 
-		// if compute.compute().await != seal {
-		// 	return Ok(false);
-		// }
+		if compute.compute() != seal {
+			return Ok(false);
+		}
 
 		Ok(true)
 	}
@@ -185,7 +156,7 @@ where
 	fn verify(
 		&self,
 		_parent: &BlockId<B>,
-		_pre_hash: &H256,
+		pre_hash: &H256,
 		_pre_digest: Option<&[u8]>,
 		seal: &RawSeal,
 		difficulty: Self::Difficulty,
@@ -202,15 +173,15 @@ where
 		}
 
 		// Make sure the provided work actually comes from the correct pre_hash
-		// let compute = Compute {
-		// 	difficulty,
-		// 	pre_hash: *pre_hash,
-		// 	nonce: seal.nonce,
-		// };
+		let compute = Compute {
+			difficulty,
+			pre_hash: *pre_hash,
+			nonce: seal.nonce,
+		};
 
-		// if compute.compute() != seal {
-		// 	return Ok(false);
-		// }
+		if compute.compute() != seal {
+			return Ok(false);
+		}
 
 		Ok(true)
 	}

@@ -2932,17 +2932,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jsonrpc"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "248ea3eab5d9a37ee324b1f576f19d274ff7e56cd5206ea4755a7ef918e94fa4"
-dependencies = [
- "base64 0.13.1",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "jsonrpsee"
 version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4206,7 +4195,7 @@ dependencies = [
  "node-template-runtime",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
- "poi",
+ "pow",
  "sc-authority-discovery",
  "sc-basic-authorship",
  "sc-cli",
@@ -4232,6 +4221,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keyring",
+ "sp-keystore",
  "sp-runtime",
  "sp-timestamp",
  "substrate-build-script-utils",
@@ -4898,22 +4888,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3d7ddaed09e0eb771a79ab0fd64609ba0afb0a8366421957936ad14cbd13630"
 
 [[package]]
-name = "poi"
-version = "3.0.0"
-dependencies = [
- "jsonrpc",
- "parity-scale-codec",
- "rand 0.8.5",
- "sc-consensus-pow",
- "sha3 0.9.1",
- "sp-api",
- "sp-authority-discovery",
- "sp-consensus-pow",
- "sp-core",
- "sp-runtime",
-]
-
-[[package]]
 name = "polling"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4962,6 +4936,20 @@ dependencies = [
  "cpufeatures",
  "opaque-debug 0.3.0",
  "universal-hash 0.5.0",
+]
+
+[[package]]
+name = "pow"
+version = "3.0.0"
+dependencies = [
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "sc-consensus-pow",
+ "sha3 0.9.1",
+ "sp-api",
+ "sp-consensus-pow",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]

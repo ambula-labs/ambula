@@ -1,22 +1,22 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 use async_trait::async_trait;
-use futures::StreamExt;
-use futures::executor::block_on;
+use futures::{executor::block_on, StreamExt};
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
-use poi::*;
-use sp_api::Encode;
+use pow::*;
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_keystore::LocalKeystore;
 use sc_network::{Event, NetworkEventStream};
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
+use sp_api::{Encode, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
-use sp_api::ProvideRuntimeApi;
-use sp_core::U256;
-use sp_runtime::traits::Block as BlockT;
-use std::thread;
-use std::{sync::Arc, time::Duration};
+use sp_core::{sr25519, U256};
+use sp_keystore::SyncCryptoStore;
+use sp_runtime::{
+	key_types::AUTHORITY_DISCOVERY as AUTHORITY_DISCOVERY_KEY_TYPE, traits::Block as BlockT,
+};
+use std::{sync::Arc, thread, time::Duration};
 
 // Our native executor instance.
 pub struct ExecutorDispatch;
@@ -82,7 +82,7 @@ pub fn new_partial(
 	ServiceError,
 > {
 	if config.keystore_remote.is_some() {
-		return Err(ServiceError::Other("Remote Keystores are not supported.".into()));
+		return Err(ServiceError::Other("Remote Keystores are not supported.".into()))
 	}
 
 	let telemetry = config
@@ -126,9 +126,10 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-	// let can_author_with = sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
+	// let can_author_with =
+	// sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-	let pow_algorithm = poi::MinimalSha3Algorithm::new(client.clone());
+	let pow_algorithm = pow::MinimalSha3Algorithm::new(client.clone());
 
 	let pow_block_import = sc_consensus_pow::PowBlockImport::new(
 		client.clone(),
@@ -182,12 +183,11 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 	if let Some(url) = &config.keystore_remote {
 		match remote_keystore(url) {
 			Ok(k) => keystore_container.set_remote_keystore(k),
-			Err(e) => {
+			Err(e) =>
 				return Err(ServiceError::Other(format!(
 					"Error hooking up remote keystore for {}: {}",
 					url, e
-				)))
-			},
+				))),
 		};
 	}
 
@@ -212,9 +212,6 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 	}
 
 	let role = config.role.clone();
-	// let force_authoring = config.force_authoring;
-	// let backoff_authoring_blocks: Option<()> = None;
-	// let name = config.network.node_name.clone();
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let rpc_extensions_builder = {
@@ -275,7 +272,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			Box::pin(_discovery_worker.run()),
 		);
 
-		let pow_algorithm = poi::MinimalSha3Algorithm::new(client.clone());
+		let pow_algorithm = pow::MinimalSha3Algorithm::new(client.clone());
 
 		let (_worker, worker_task) = sc_consensus_pow::start_mining_worker(
 			Box::new(pow_block_import),
@@ -294,10 +291,19 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		);
 
 		task_manager.spawn_essential_handle().spawn_blocking(
-			"poi",
+			"pow",
 			Some("block-authoring"),
 			worker_task,
 		);
+
+		// Get node authority-discovery public session key from keystore
+		let authority_discovery_pubkey: Vec<sr25519::Public> = SyncCryptoStore::sr25519_public_keys(
+			&*keystore_container.sync_keystore(),
+			AUTHORITY_DISCOVERY_KEY_TYPE,
+		)
+		.iter()
+		.map(|k| sr25519::Public::from(k.clone()))
+		.collect();
 
 		// Start Mining
 		let mut nonce: U256 = U256::from(0);
@@ -306,26 +312,33 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 			let metadata = worker.metadata();
 
 			if let Some(metadata) = metadata {
-				let authorities =
+				// Get the list of authorities from autority-discovery pallet at a specific bloc
+				let mut authorities =
 					client.clone().runtime_api().authorities(metadata.best_hash).unwrap();
 
-				println!("Authorities: {:?}", authorities);
+				let authorities_len = authorities.len();
 
-				// TODO: make discovery work
+				// Sort authorities to have the same order accross nodes
+				authorities.sort();
 
-				let first_authority_ip = block_on(
-					_discovery_service.get_addresses_by_authority_id(authorities[0].clone()),
-				);
-				println!("First authority multiaddr: {:?}", first_authority_ip);
+				// Print number of authorities
+				println!("[Authorities] (length = {})", authorities_len);
 
-				let second_authority_ip = block_on(
-					_discovery_service.get_addresses_by_authority_id(authorities[1].clone()),
-				);
-				println!("Second authority multiaddr: {:?}", second_authority_ip);
+				// Print all authorities libp2p multiaddr with local node filtered out
+				for (i, authority) in authorities.iter().filter(|&x| *x != authority_discovery_pubkey[0].into()).enumerate() {
+					println!(
+						"Authority {} : {:?} - {:?}",
+						i,
+						block_on(
+							_discovery_service.get_addresses_by_authority_id(authority.clone())
+						),
+						authority.clone()
+					);
+				}
 
 				let compute =
 					Compute { difficulty: metadata.difficulty, pre_hash: metadata.pre_hash, nonce };
-				let seal = compute.compute(client.clone(), metadata.best_hash);
+				let seal = compute.compute();
 				if hash_meets_difficulty(&seal.work, seal.difficulty) {
 					nonce = U256::from(0);
 					block_on(worker.submit(seal.encode()));

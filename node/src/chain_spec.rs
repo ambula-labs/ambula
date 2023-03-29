@@ -31,6 +31,7 @@ where
 }
 
 pub fn authority_keys_from_seed(s: &str) -> (AccountId, AuthorityDiscoveryId) {
+	println!("{} authority key : {:?}", s, get_account_id_from_seed::<sr25519::Public>(s));
 	(
 		get_account_id_from_seed::<sr25519::Public>(s),
 		get_from_seed::<AuthorityDiscoveryId>(s),
@@ -70,7 +71,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
 		// Telemetry
 		None,
 		// Protocol ID
-		None,
+		Some("amb"),
 		None,
 		// Properties
 		None,
@@ -92,7 +93,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 			testnet_genesis(
 				wasm_binary,
 				// Initial PoA authorities
-				vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
+				vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob"), authority_keys_from_seed("Charlie")],
 				// Sudo account
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				// Pre-funded accounts
@@ -112,7 +113,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 		// Telemetry
 		None,
 		// Protocol ID
-		None,
+		Some("amb"),
 		// Properties
 		None,
 		None,

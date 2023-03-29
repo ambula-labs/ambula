@@ -1,14 +1,21 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
+use async_trait::async_trait;
+use futures::StreamExt;
+use futures::executor::block_on;
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
-use sc_client_api::BlockBackend;
-use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
-use sc_consensus_grandpa::SharedVoterState;
+use poi::*;
+use sp_api::Encode;
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_keystore::LocalKeystore;
-use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
+use sc_network::{Event, NetworkEventStream};
+use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
+use sp_authority_discovery::AuthorityDiscoveryApi;
+use sp_api::ProvideRuntimeApi;
+use sp_core::U256;
+use sp_runtime::traits::Block as BlockT;
+use std::thread;
 use std::{sync::Arc, time::Duration};
 
 // Our native executor instance.
@@ -36,6 +43,21 @@ pub(crate) type FullClient =
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
+pub struct CreateInherentDataProviders;
+
+#[async_trait]
+impl sp_inherents::CreateInherentDataProviders<Block, ()> for CreateInherentDataProviders {
+	type InherentDataProviders = sp_timestamp::InherentDataProvider;
+
+	async fn create_inherent_data_providers(
+		&self,
+		_parent: <Block as BlockT>::Hash,
+		_extra_args: (),
+	) -> Result<Self::InherentDataProviders, Box<dyn std::error::Error + Send + Sync>> {
+		Ok(sp_timestamp::InherentDataProvider::from_system_time())
+	}
+}
+
 pub fn new_partial(
 	config: &Configuration,
 ) -> Result<
@@ -46,20 +68,21 @@ pub fn new_partial(
 		sc_consensus::DefaultImportQueue<Block, FullClient>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
-			sc_consensus_grandpa::GrandpaBlockImport<
-				FullBackend,
+			sc_consensus_pow::PowBlockImport<
 				Block,
+				Arc<FullClient>,
 				FullClient,
 				FullSelectChain,
+				MinimalSha3Algorithm<FullClient>,
+				CreateInherentDataProviders,
 			>,
-			sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 			Option<Telemetry>,
 		),
 	>,
 	ServiceError,
 > {
 	if config.keystore_remote.is_some() {
-		return Err(ServiceError::Other("Remote Keystores are not supported.".into()))
+		return Err(ServiceError::Other("Remote Keystores are not supported.".into()));
 	}
 
 	let telemetry = config
@@ -103,47 +126,36 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-	let (grandpa_block_import, grandpa_link) = sc_consensus_grandpa::block_import(
+	// let can_author_with = sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
+
+	let pow_algorithm = poi::MinimalSha3Algorithm::new(client.clone());
+
+	let pow_block_import = sc_consensus_pow::PowBlockImport::new(
 		client.clone(),
-		&(client.clone() as Arc<_>),
+		client.clone(),
+		pow_algorithm.clone(),
+		0, // check inherents starting at block 0
 		select_chain.clone(),
-		telemetry.as_ref().map(|x| x.handle()),
+		CreateInherentDataProviders,
+	);
+
+	let import_queue = sc_consensus_pow::import_queue(
+		Box::new(pow_block_import.clone()),
+		None,
+		pow_algorithm.clone(),
+		&task_manager.spawn_essential_handle(),
+		config.prometheus_registry(),
 	)?;
-
-	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
-
-	let import_queue =
-		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _>(ImportQueueParams {
-			block_import: grandpa_block_import.clone(),
-			justification_import: Some(Box::new(grandpa_block_import.clone())),
-			client: client.clone(),
-			create_inherent_data_providers: move |_, ()| async move {
-				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-				let slot =
-					sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-						*timestamp,
-						slot_duration,
-					);
-
-				Ok((slot, timestamp))
-			},
-			spawner: &task_manager.spawn_essential_handle(),
-			registry: config.prometheus_registry(),
-			check_for_equivocation: Default::default(),
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-			compatibility_mode: Default::default(),
-		})?;
 
 	Ok(sc_service::PartialComponents {
 		client,
 		backend,
-		task_manager,
 		import_queue,
 		keystore_container,
-		select_chain,
+		task_manager,
 		transaction_pool,
-		other: (grandpa_block_import, grandpa_link, telemetry),
+		select_chain,
+		other: (pow_block_import, telemetry),
 	})
 }
 
@@ -155,42 +167,29 @@ fn remote_keystore(_url: &String) -> Result<Arc<LocalKeystore>, &'static str> {
 }
 
 /// Builds a new service for a full client.
-pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> {
+pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
 		client,
 		backend,
-		mut task_manager,
 		import_queue,
 		mut keystore_container,
-		select_chain,
+		mut task_manager,
 		transaction_pool,
-		other: (block_import, grandpa_link, mut telemetry),
+		select_chain,
+		other: (pow_block_import, mut telemetry),
 	} = new_partial(&config)?;
 
 	if let Some(url) = &config.keystore_remote {
 		match remote_keystore(url) {
 			Ok(k) => keystore_container.set_remote_keystore(k),
-			Err(e) =>
+			Err(e) => {
 				return Err(ServiceError::Other(format!(
 					"Error hooking up remote keystore for {}: {}",
 					url, e
-				))),
+				)))
+			},
 		};
 	}
-	let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
-		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		&config.chain_spec,
-	);
-
-	config
-		.network
-		.extra_sets
-		.push(sc_consensus_grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
-	let warp_sync = Arc::new(sc_consensus_grandpa::warp_proof::NetworkProvider::new(
-		backend.clone(),
-		grandpa_link.shared_authority_set().clone(),
-		Vec::default(),
-	));
 
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
@@ -200,7 +199,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
-			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
+			warp_sync_params: None,
 		})?;
 
 	if config.offchain_worker.enabled {
@@ -213,10 +212,9 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 	}
 
 	let role = config.role.clone();
-	let force_authoring = config.force_authoring;
-	let backoff_authoring_blocks: Option<()> = None;
-	let name = config.network.node_name.clone();
-	let enable_grandpa = !config.disable_grandpa;
+	// let force_authoring = config.force_authoring;
+	// let backoff_authoring_blocks: Option<()> = None;
+	// let name = config.network.node_name.clone();
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let rpc_extensions_builder = {
@@ -254,87 +252,94 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			telemetry.as_ref().map(|x| x.handle()),
 		);
 
-		let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
+		let dht_event_stream =
+			network.event_stream("authority-discovery").filter_map(|e| async move {
+				match e {
+					Event::Dht(e) => Some(e),
+					_ => None,
+				}
+			});
 
-		let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
-			StartAuraParams {
-				slot_duration,
-				client,
-				select_chain,
-				block_import,
-				proposer_factory,
-				create_inherent_data_providers: move |_, ()| async move {
-					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+		let (mut _discovery_worker, mut _discovery_service) =
+			sc_authority_discovery::new_worker_and_service(
+				client.clone(),
+				network.clone(),
+				Box::pin(dht_event_stream),
+				sc_authority_discovery::Role::PublishAndDiscover(keystore_container.keystore()),
+				None,
+			);
 
-					let slot =
-						sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-							*timestamp,
-							slot_duration,
-						);
-
-					Ok((slot, timestamp))
-				},
-				force_authoring,
-				backoff_authoring_blocks,
-				keystore: keystore_container.sync_keystore(),
-				sync_oracle: sync_service.clone(),
-				justification_sync_link: sync_service.clone(),
-				block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
-				max_block_proposal_slot_portion: None,
-				telemetry: telemetry.as_ref().map(|x| x.handle()),
-				compatibility_mode: Default::default(),
-			},
-		)?;
-
-		// the AURA authoring task is considered essential, i.e. if it
-		// fails we take down the service with it.
-		task_manager
-			.spawn_essential_handle()
-			.spawn_blocking("aura", Some("block-authoring"), aura);
-	}
-
-	if enable_grandpa {
-		// if the node isn't actively participating in consensus then it doesn't
-		// need a keystore, regardless of which protocol we use below.
-		let keystore =
-			if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
-
-		let grandpa_config = sc_consensus_grandpa::Config {
-			// FIXME #1578 make this available through chainspec
-			gossip_duration: Duration::from_millis(333),
-			justification_period: 512,
-			name: Some(name),
-			observer_enabled: false,
-			keystore,
-			local_role: role,
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-			protocol_name: grandpa_protocol_name,
-		};
-
-		// start the full GRANDPA voter
-		// NOTE: non-authorities could run the GRANDPA observer protocol, but at
-		// this point the full voter should provide better guarantees of block
-		// and vote data availability than the observer. The observer has not
-		// been tested extensively yet and having most nodes in a network run it
-		// could lead to finality stalls.
-		let grandpa_config = sc_consensus_grandpa::GrandpaParams {
-			config: grandpa_config,
-			link: grandpa_link,
-			network,
-			sync: Arc::new(sync_service),
-			voting_rule: sc_consensus_grandpa::VotingRulesBuilder::default().build(),
-			prometheus_registry,
-			shared_voter_state: SharedVoterState::empty(),
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-		};
-
-		// the GRANDPA voter task is considered infallible, i.e.
-		// if it fails we take down the service with it.
 		task_manager.spawn_essential_handle().spawn_blocking(
-			"grandpa-voter",
-			None,
-			sc_consensus_grandpa::run_grandpa_voter(grandpa_config)?,
+			"authority_discovery",
+			Some("peer-discovery"),
+			Box::pin(_discovery_worker.run()),
 		);
+
+		let pow_algorithm = poi::MinimalSha3Algorithm::new(client.clone());
+
+		let (_worker, worker_task) = sc_consensus_pow::start_mining_worker(
+			Box::new(pow_block_import),
+			client.clone(),
+			select_chain,
+			pow_algorithm.clone(),
+			proposer_factory,
+			sync_service.clone(),
+			sync_service.clone(),
+			None,
+			CreateInherentDataProviders,
+			// time to wait for a new block before starting to mine a new one
+			Duration::from_secs(10),
+			// how long to take to actually build the block (i.e. executing extrinsics)
+			Duration::from_secs(10),
+		);
+
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"poi",
+			Some("block-authoring"),
+			worker_task,
+		);
+
+		// Start Mining
+		let mut nonce: U256 = U256::from(0);
+		thread::spawn(move || loop {
+			let worker = _worker.clone();
+			let metadata = worker.metadata();
+
+			if let Some(metadata) = metadata {
+				let authorities =
+					client.clone().runtime_api().authorities(metadata.best_hash).unwrap();
+
+				println!("Authorities: {:?}", authorities);
+
+				// TODO: make discovery work
+
+				let first_authority_ip = block_on(
+					_discovery_service.get_addresses_by_authority_id(authorities[0].clone()),
+				);
+				println!("First authority multiaddr: {:?}", first_authority_ip);
+
+				let second_authority_ip = block_on(
+					_discovery_service.get_addresses_by_authority_id(authorities[1].clone()),
+				);
+				println!("Second authority multiaddr: {:?}", second_authority_ip);
+
+				let compute =
+					Compute { difficulty: metadata.difficulty, pre_hash: metadata.pre_hash, nonce };
+				let seal = compute.compute(client.clone(), metadata.best_hash);
+				if hash_meets_difficulty(&seal.work, seal.difficulty) {
+					nonce = U256::from(0);
+					block_on(worker.submit(seal.encode()));
+				} else {
+					nonce = nonce.saturating_add(U256::from(1));
+					if nonce == U256::MAX {
+						nonce = U256::from(0);
+					}
+				}
+				thread::sleep(Duration::new(1, 0));
+			} else {
+				thread::sleep(Duration::new(1, 0));
+			}
+		});
 	}
 
 	network_starter.start_network();

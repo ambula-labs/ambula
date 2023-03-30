@@ -11,7 +11,7 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::{Encode, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
-use sp_core::{sr25519, U256};
+use sp_core::{sr25519, U256, H512};
 use sp_keystore::SyncCryptoStore;
 use sp_runtime::{
 	key_types::AUTHORITY_DISCOVERY as AUTHORITY_DISCOVERY_KEY_TYPE, traits::Block as BlockT,
@@ -304,6 +304,19 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		.iter()
 		.map(|k| sr25519::Public::from(k.clone()))
 		.collect();
+		
+		// Use authority-discovery session key to sign a message (should use a different ECDSA session key KEY_TYPE instead)
+		let signature = SyncCryptoStore::sign_with(
+			&*keystore_container.sync_keystore(),
+			AUTHORITY_DISCOVERY_KEY_TYPE,
+			&authority_discovery_pubkey[0].into(),
+			"My Signed Message".as_bytes()
+		).unwrap();
+
+		match signature {
+			Some(sig) => println!("Signature: {:?}", H512::from_slice(&sig)),
+			_ => {},
+		};
 
 		// Start Mining
 		let mut nonce: U256 = U256::from(0);

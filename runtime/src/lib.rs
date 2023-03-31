@@ -557,6 +557,12 @@ impl_runtime_apis! {
 			Executive::try_execute_block(block, state_root_check, signature_check, select).expect("execute-block failed")
 		}
 	}
+
+	impl pallet_template_runtime_api::TemplateApi<Block> for Runtime {
+		fn get_value() -> u32 {
+			TemplateModule::get_value().unwrap_or(0)
+		}
+	}
 }
 
 #[cfg(test)]

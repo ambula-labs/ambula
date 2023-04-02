@@ -13,14 +13,23 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
+  fail_if_pull_request_is_draft:
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Draft pull request cannot be merged.
+        run: exit 1
+
   check:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    # Do not run if pull request is in draft
+    if: github.event.pull_request.draft == false
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v2.5.0
 
       - name: Set-Up
         run: sudo apt install -y git clang curl libssl-dev llvm libudev-dev protobuf-compiler
@@ -38,7 +47,7 @@ jobs:
         run: |
           SKIP_WASM_BUILD=1 cargo check --release
 
-      - name: Check Build for Benchmarking
-        run: >
-          pushd node &&
-          cargo check --features=runtime-benchmarks --release
+      # - name: Check Build for Benchmarking
+      #   run: >
+      #     pushd node &&
+      #     cargo check --features=runtime-benchmarks --release

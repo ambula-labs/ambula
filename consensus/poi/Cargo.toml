@@ -1,0 +1,22 @@
+[package]
+name = 'poi'
+version = "3.0.0"
+edition = '2018'
+authors = ['Substrate DevHub <https://github.com/substrate-developer-hub>']
+repository = 'https://github.com/substrate-developer-hub/recipes'
+description = 'PoI-based Proof of Work algorithm for Substrate'
+license = "GPL-3.0-or-later"
+
+[dependencies]
+parity-scale-codec = { version = "3.2.2", default-features = false, features = ["derive"] }
+rand = { version = "0.8", features = ["small_rng"] }
+sha3 = "0.9"
+jsonrpc = "0.14.0"
+
+# Substrate packages
+sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-consensus-pow = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-consensus-pow = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }

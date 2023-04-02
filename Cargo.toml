@@ -3,6 +3,7 @@ members = [
     "node",
     "pallets/template",
     "runtime",
+    "consensus/pow"
 ]
 [profile.release]
 panic = "unwind"

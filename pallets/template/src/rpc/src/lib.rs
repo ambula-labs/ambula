@@ -38,9 +38,10 @@ C::Api: TemplateRuntimeApi<Block>,
 {
 	fn get_value(&self, at: Option<<Block as BlockT>::Hash>) -> RpcResult<u32> {
 		let api = self.client.runtime_api();
-		let at = BlockId::hash(at.unwrap_or_else(||self.client.info().best_hash));
+		// let at = BlockId::hash(at.unwrap_or_else(||self.client.info().best_hash));
+		let at = at.unwrap_or_else(||self.client.info().best_hash);
 
-		api.get_value(&at).map_err(runtime_error_into_rpc_err)
+		api.get_value(at).map_err(runtime_error_into_rpc_err)
 	}
 }
 

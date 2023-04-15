@@ -4193,6 +4193,7 @@ dependencies = [
  "futures",
  "jsonrpsee",
  "node-template-runtime",
+ "pallet-template-rpc",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "pow",
@@ -4245,6 +4246,7 @@ dependencies = [
  "pallet-session",
  "pallet-sudo",
  "pallet-template",
+ "pallet-template-runtime-api",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -4536,6 +4538,25 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-template-rpc"
+version = "1.0.0"
+dependencies = [
+ "jsonrpsee",
+ "pallet-template-runtime-api",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-template-runtime-api"
+version = "1.0.0"
+dependencies = [
+ "sp-api",
 ]
 
 [[package]]

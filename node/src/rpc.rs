@@ -15,6 +15,7 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 
 pub use sc_rpc_api::DenyUnsafe;
+use sp_keystore::SyncCryptoStorePtr;
 
 /// Full client dependencies.
 pub struct FullDeps<C, P> {
@@ -24,6 +25,8 @@ pub struct FullDeps<C, P> {
 	pub pool: Arc<P>,
 	/// Whether to deny unsafe calls
 	pub deny_unsafe: DenyUnsafe,
+	/// Keystore
+	pub keystore: SyncCryptoStorePtr
 }
 
 /// Instantiate all full RPC extensions.
@@ -45,11 +48,11 @@ P: TransactionPool + 'static,
 	use pallet_template_rpc::{TemplatePallet, TemplateApiServer};
 
 	let mut module = RpcModule::new(());
-	let FullDeps { client, pool, deny_unsafe } = deps;
+	let FullDeps { client, pool, deny_unsafe, keystore } = deps;
 
 	module.merge(System::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
 	module.merge(TransactionPayment::new(client.clone()).into_rpc())?;
-	module.merge(TemplatePallet::new(client).into_rpc())?;
+	module.merge(TemplatePallet::new(client, keystore).into_rpc())?;
 
 	// Extend this RPC with a custom API by using the following syntax.
 	// `YourRpcStruct` should have a reference to a client, which is needed

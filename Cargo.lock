@@ -4549,6 +4549,8 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-blockchain",
+ "sp-core",
+ "sp-keystore",
  "sp-runtime",
 ]
 

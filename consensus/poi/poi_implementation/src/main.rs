@@ -1,9 +1,10 @@
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
+use rand_distr::{Distribution, Uniform};
 
 
 //---------------------------------------------------------------------
-//Définition of a Node structure
+// Définition of a Node structure
 //---------------------------------------------------------------------
 struct Node 
 {
@@ -15,7 +16,7 @@ struct Node
 
 
 //---------------------------------------------------------------------
-//Définition of getters
+// Définition of getters
 //---------------------------------------------------------------------
 impl Node
 {
@@ -32,7 +33,7 @@ impl Node
 
 
 //---------------------------------------------------------------------
-//Definition of Node methods
+// Definition of Node methods
 //---------------------------------------------------------------------
 trait NodeInfo 
 {
@@ -53,7 +54,12 @@ impl NodeInfo for Node
 
 //---------------------------------------------------------------------
 // Implemntation of the algorithm createServices of the paper.
-// This methods create a pseudo-random subset of nodes named S.
+// This function create a pseudo-random subset of nodes named S.
+//
+// @param seed : seed to create a RNG and gererate a random size for S
+// @param _n : set of nodes
+//
+// @return Vec<&Node> : a subset of _n
 //---------------------------------------------------------------------
 fn create_services(seed: u64, _n: &Vec<Node>) -> Vec<&Node>
 {
@@ -104,6 +110,64 @@ fn create_services(seed: u64, _n: &Vec<Node>) -> Vec<&Node>
     return _s;
 }
 //---------------------------------------------------------------------
+
+
+
+/*
+//---------------------------------------------------------------------
+// The function tour_length is a random number generator, seeded with s0
+// that generates a number according to probabilistic distribution. This
+// number represent the number of signature required to validate and push
+// the current block.
+//
+// Probabilistic distribution : Normal distribution (not use)
+//
+// @param d1 : first parameter of normal distribution (mean)
+// @param d2 : second parameter of normal distribution (std_dev)
+// @param seed : seed to create a RNG 
+//
+// @return u64 : the random length
+//---------------------------------------------------------------------
+fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
+{
+    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+
+    let mean = d1 as f64;
+    let std_dev = d2 as f64;
+    let normal = Normal::new(mean, std_dev).unwrap();   
+    let value: f64 = normal.sample(&mut rng);
+
+    return value as u64;
+}
+//---------------------------------------------------------------------
+*/
+
+
+
+//---------------------------------------------------------------------
+// The function tour_length is a random number generator, seeded with s0
+// that generates a number according to probabilistic distribution. This
+// number represent the number of signature required to validate and push
+// the current block.
+//
+// Probabilistic distribution : Uniform distribution
+//
+// @param d1 : first parameter of uniform distribution (lower range)
+// @param d2 : second parameter of uniform distribution (upper range)
+// @param seed : seed to create a RNG 
+//
+// @return u64 : the random length
+//---------------------------------------------------------------------
+fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
+{
+    let mut rng = StdRng::seed_from_u64(seed);
+    let range = Uniform::new_inclusive(d1, d2);
+    let value: u64 = range.sample(&mut rng);
+
+    return value;
+}
+//---------------------------------------------------------------------
+
 
 
 
@@ -186,17 +250,21 @@ fn main() {
     _n.push(node_9);
     _n.push(node_10);
 
-    //Print of N
+    //Print N
     //for x in 0.._n.len() {
     //    _n[x].get_infos();
     //}  
 
-    let s0: u64 = 1234560;                               // signature (seed)
-    let mut _s :Vec<&Node> = create_services(s0, &_n);   // subset of N named S
+    let s0: u64 = 1234560;                                   // signature (seed)
+    let mut _s : Vec<&Node> = create_services(s0, &_n);      // subset of N named S
 
-    //Print of S
-    for x in 0.._s.len() {
-        _s[x].get_infos();
+    //Print S
+    for _x in 0.._s.len() {
+        _s[_x].get_infos();
     } 
+
+    let length_tour = tour_length(1, 20, s0);                //number of signatures required
+    println!("{} signatures required to validate and push the current block.", length_tour);
+
     
 }

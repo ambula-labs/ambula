@@ -170,6 +170,67 @@ fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
 
 
 
+fn sign(_n: &Node, _d: u64) -> u64
+{
+    //TODO process of signature
+
+    return 1234560;
+}
+
+
+fn send(_receiver: u64, _h: u64, _d: u64, _m: String) -> u64
+{
+    //TODO process of signature
+
+    return 5;
+}
+
+
+//---------------------------------------------------------------------
+// This function is executed by u0 to generate the PoI
+//  
+// @param u0 : the node wich wants to push _m
+// @param _d : dependency (hash of last block of the blockchain)
+// @param _m : the message : the new block to push in the blockchain
+// @param d1 : first parameter of the difficulty of the PoI
+// @param d2 : second parameter of the diffculty of the PoI
+// @param _n : the set of nodes in the network
+//
+// @return  : P, a list of signatures {s0, s1, s1', .., sk, sk'}
+//---------------------------------------------------------------------
+fn generate_poi(u0: &Node, _d: u64, _m: String, d1: u64, d2: u64, _n: &Vec<Node>) -> Vec<u64>
+{
+    let mut _p :Vec<u64> = Vec::new();                                  //the list of signatures                               
+    let s0 : u64 = sign(&u0, _d);                                       //the signature of u0 (the node which wants to push _m)
+    let mut _s : Vec<&Node>  = create_services(s0, &_n);                //the subset of _n, use to get the differents signatures
+    let _l : u64 = tour_length(d1, d2, s0);                             //number of signatures required to push _m
+
+    //Print S
+    for _x in 0.._s.len() {
+        _s[_x].get_infos();
+    } 
+    println!("{} signatures required to validate and push the current block.", _l);
+
+    _p.push(s0);
+
+    let mut current_hash : u64 = 1;
+
+    let mut next_hop : u64;
+    let mut sk : u64;
+    for _k in 0.._l {
+
+        next_hop = current_hash % (_s.len() as u64);
+        sk = send(next_hop, current_hash, _d, _m.clone());
+        _p.push(sk);
+        sk = sign(&u0, sk);
+        _p.push(sk);
+        current_hash = 2;
+    }
+
+    return _p;
+}
+//---------------------------------------------------------------------
+
 
 //---------------------------------------------------------------------
 //MAIN
@@ -250,11 +311,20 @@ fn main() {
     _n.push(node_9);
     _n.push(node_10);
 
+    let last_block_hash : u64 = 54321;
+    let message : String = String::from("block1");
+    let _p : Vec<u64> = generate_poi(&_n[0],last_block_hash, message, 1, 20, &_n);
+
+    for _x in 0.._p.len() {
+        println!("{}", _p[_x]);
+    }  
+
     //Print N
-    //for x in 0.._n.len() {
-    //    _n[x].get_infos();
+    //for _x in 0.._n.len() {
+    //    _n[_x].get_infos();
     //}  
 
+    /*
     let s0: u64 = 1234560;                                   // signature (seed)
     let mut _s : Vec<&Node> = create_services(s0, &_n);      // subset of N named S
 
@@ -265,6 +335,6 @@ fn main() {
 
     let length_tour = tour_length(1, 20, s0);                //number of signatures required
     println!("{} signatures required to validate and push the current block.", length_tour);
-
+    */
     
 }

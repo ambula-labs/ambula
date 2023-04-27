@@ -1,7 +1,9 @@
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
 use rand_distr::{Distribution, Uniform};
-
 
 //---------------------------------------------------------------------
 // Définition of a Node structure
@@ -10,6 +12,7 @@ struct Node
 {
     name : String,
     ip : String,
+    public_key : String,
 }
 //---------------------------------------------------------------------
 
@@ -26,6 +29,10 @@ impl Node
 
     pub fn get_ip(&self) -> &str {
         &self.ip
+    }
+
+    pub fn get_public_key(&self) -> &str {
+        &self.public_key
     }
 }
 //---------------------------------------------------------------------
@@ -45,7 +52,7 @@ impl NodeInfo for Node
     fn get_infos(&self) {
         println!("Name : \"{}\"", &self.get_name());
         println!("IP : {}\n", &self.get_ip());
-
+        println!("Public Key : {}\n", &self.get_public_key());
     }
 }
 //---------------------------------------------------------------------
@@ -169,6 +176,98 @@ fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
 //---------------------------------------------------------------------
 
 
+//---------------------------------------------------------------------
+// The function concat_u64_as_u64 is a function that concatenate 
+// u64s to create a u64.
+// 
+// @param nums : list of u64s
+//
+// @return u64 : the concatenation of the numbers
+//---------------------------------------------------------------------
+fn concat_u64_as_u64(nums: &[u64]) -> u64 {
+    if nums.is_empty() {
+        return 0;
+    }
+    nums.iter().product()
+}
+
+// fn concat_u64_as_strings(nums: &[u64]) -> String {
+//     let num_strs: Vec<String> = nums.iter().map(|n| n.to_string()).collect();
+//     num_strs.concat()
+// }
+
+
+//---------------------------------------------------------------------
+// The function verify_signature is a function that verifies that
+// `signature` is a signature of `dependency` by `u`.
+// 
+// @param u : the public key of the node that signed
+// @param signature : the signature to verify
+// @param dependency : the dependency to verify
+//
+// @return bool : true if the signature is valid, false otherwise
+//---------------------------------------------------------------------
+fn verify_signature(u: &str, signature: u64, dependency: u64) -> bool
+{
+    return true; // TODO once we have a signature mecanism setup
+}
+
+
+//---------------------------------------------------------------------
+// The function hash is a function that hashes a string.
+//
+// @param value : the value to hash
+//
+// @return u64 : the hash of the value
+//---------------------------------------------------------------------
+fn hash(value: String) -> u64 {
+    let mut H = DefaultHasher::new();
+    value.hash(&mut H);
+    return H.finish();
+}
+
+
+//---------------------------------------------------------------------
+// The function check_poi is a function that verifies that the proof
+// of interaction is valid.
+//
+// @param proof : the proof of interaction
+// @param u : the public key of the node that signed
+// @param dependency : the dependency to verify
+// @param message_root : the root of the message
+// @param difficulty : the difficulty of the proof of interaction
+// @param _n : the set of nodes
+//
+// @return bool : true if the proof of interaction is valid, false otherwise
+//---------------------------------------------------------------------
+fn check_poi(proof: &Vec<u64>, u: &str, dependency: u64, message_root: u64, difficulty: u64, _n: &Vec<Node>) -> bool {
+    if !verify_signature(u, proof[0], dependency) {
+        return false;
+    }
+    let S = create_services(proof[0], _n);
+    let L = tour_length(1, 20, proof[0]);
+    if 2*L + 1 != proof.len() as u64 {
+        return false;
+    }
+
+    let mut data_to_hash = concat_u64_as_u64(&[proof[0], message_root]);
+    let mut current_hash = hash(data_to_hash.to_string());
+
+    for i in 0..L as usize {
+        let next_hop = (current_hash % (S.len() as u64)) as usize;
+        let next_node_key = &S[next_hop].get_public_key();
+        let to_check = concat_u64_as_u64(&[current_hash, dependency, message_root]);
+        if !verify_signature(next_node_key, proof[2*i+1], to_check) {
+            return false;
+        }
+        if !verify_signature(u, proof[2*i+2], proof[2*i+1]) {
+            return false;
+        }
+        data_to_hash = concat_u64_as_u64(&[proof[2*i+2]]);
+        current_hash = hash(data_to_hash.to_string())
+    }
+    return true;
+}
 
 
 //---------------------------------------------------------------------
@@ -180,60 +279,70 @@ fn main() {
     let node_1 = Node {
         name : String::from("Node n°1"),
         ip : String::from("127.0.0.1"),
+        public_key : String::from("abcdefga")
     };
 
     //Déclaration node n°2
     let node_2 = Node {
         name : String::from("Node n°2"),
         ip : String::from("127.0.0.2"),
+        public_key : String::from("abcdefgb")
     };
 
     //Déclaration node n°3
     let node_3 = Node {
         name : String::from("Node n°3"),
         ip : String::from("127.0.0.3"),
+        public_key : String::from("abcdefgc")
     };
 
     //Déclaration node n°4
     let node_4 = Node {
         name : String::from("Node n°4"),
         ip : String::from("127.0.0.4"),
+        public_key : String::from("abcdefgd")
     };
 
     //Déclaration node n°5
     let node_5 = Node {
         name : String::from("Node n°5"),
         ip : String::from("127.0.0.5"),
+        public_key : String::from("abcdefge")
     };
 
     //Déclaration node n°6
     let node_6 = Node {
         name : String::from("Node n°6"),
         ip : String::from("127.0.0.6"),
+        public_key : String::from("abcdefgf")
     };
 
     //Déclaration node n°7
     let node_7 = Node {
         name : String::from("Node n°7"),
         ip : String::from("127.0.0.7"),
+        public_key : String::from("abcdefgg")
     };
 
     //Déclaration node n°8
     let node_8 = Node {
         name : String::from("Node n°8"),
         ip : String::from("127.0.0.8"),
+        public_key : String::from("abcdefgh")
     };
 
     //Déclaration node n°9
     let node_9 = Node {
         name : String::from("Node n°9"),
         ip : String::from("127.0.0.9"),
+        public_key : String::from("abcdefgi")
     };
 
     //Déclaration node n°10
     let node_10 = Node {
         name : String::from("Node n°10"),
         ip : String::from("127.0.0.10"),
+        public_key : String::from("abcdefgj")
     };
     
 

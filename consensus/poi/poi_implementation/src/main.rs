@@ -2,7 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use rand::{Rng, SeedableRng, thread_rng};
-use rand::rngs::StdRng;
+use rand::rngs::{StdRng, ThreadRng};
 use rand_distr::{Distribution, Uniform};
 
 //---------------------------------------------------------------------
@@ -70,25 +70,25 @@ impl NodeInfo for Node
 //---------------------------------------------------------------------
 fn create_services(seed: u64, _n: &Vec<Node>) -> Vec<&Node>
 {
-    let mut rng = StdRng::seed_from_u64(seed);          // RNG
-    let mut random_number;                              // number to use for random index of N
-    let s_size = 20.min(_n.len()/2);                    // size of the subset S
+    let mut rng: StdRng = StdRng::seed_from_u64(seed);          // RNG
+    let mut random_number: u64;                              // number to use for random index of N
+    let s_size: usize = 20.min(_n.len()/2);                    // size of the subset S
     let mut _s :Vec<&Node> = Vec::new();                // the subset S
 
     println!("Size of the set N : {}", _n.len());
     println!("s0 : {}", seed);
     println!("Size of the subset S : {} \n", s_size);
 
-    let mut x = 0;                                      //iterator of the loop
-    let mut check_state = 0;                            //variable to know if the current element of N is already present in S (yes: 1 | no: 0)
+    let mut x: usize = 0;                                      //iterator of the loop
+    let mut check_state: i32 = 0;                            //variable to know if the current element of N is already present in S (yes: 1 | no: 0)
     loop {
 
         //Take a random element of N
         random_number = rng.gen::<u64>() % (_n.len() as u64);
-        let node_tmp = &_n[random_number as usize];
+        let node_tmp: &Node = &_n[random_number as usize];
 
         //Check if this random element is not already present in S
-        let mut y = 0;                                  //index to browse S
+        let mut y: usize = 0;                                  //index to browse S
         loop {
             
             if _s.len() == 0 { break; }
@@ -167,8 +167,8 @@ fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
 //---------------------------------------------------------------------
 fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
 {
-    let mut rng = StdRng::seed_from_u64(seed);
-    let range = Uniform::new_inclusive(d1, d2);
+    let mut rng: StdRng = StdRng::seed_from_u64(seed);
+    let range: Uniform<u64> = Uniform::new_inclusive(d1, d2);
     let value: u64 = range.sample(&mut rng);
 
     return value;
@@ -231,9 +231,9 @@ fn verify_signature(u: &str, signature: u64, dependency: u64) -> bool
 // @return u64 : the hash of the value
 //---------------------------------------------------------------------
 fn hash(value: String) -> u64 {
-    let mut H = DefaultHasher::new();
-    value.hash(&mut H);
-    return H.finish();
+    let mut h: DefaultHasher = DefaultHasher::new();
+    value.hash(&mut h);
+    return h.finish();
 }
 //---------------------------------------------------------------------
 
@@ -257,19 +257,19 @@ fn check_poi(proof: &Vec<u64>, u: &str, dependency: u64, message_root: u64, diff
     if !verify_signature(u, proof[0], dependency) {
         return false;
     }
-    let S = create_services(proof[0], _n);
-    let L = tour_length(1, 20, proof[0]);
-    if 2*L + 1 != proof.len() as u64 {
+    let s: Vec<&Node> = create_services(proof[0], _n);
+    let l: u64 = tour_length(1, 20, proof[0]);
+    if 2*l + 1 != proof.len() as u64 {
         return false;
     }
 
-    let mut data_to_hash = concat_u64_as_u64(&[proof[0], message_root]);
-    let mut current_hash = hash(data_to_hash.to_string());
+    let mut data_to_hash: u64 = concat_u64_as_u64(&[proof[0], message_root]);
+    let mut current_hash: u64 = hash(data_to_hash.to_string());
 
-    for i in 0..L as usize {
-        let next_hop = (current_hash % (S.len() as u64)) as usize;
-        let next_node_key = &S[next_hop].get_public_key();
-        let to_check = concat_u64_as_u64(&[current_hash, dependency, message_root]);
+    for i in 0..l as usize {
+        let next_hop: usize = (current_hash % (s.len() as u64)) as usize;
+        let next_node_key: &str = s[next_hop].get_public_key();
+        let to_check: u64 = concat_u64_as_u64(&[current_hash, dependency, message_root]);
         if !verify_signature(next_node_key, proof[2*i+1], to_check) {
             return false;
         }
@@ -289,7 +289,7 @@ fn sign(_n: &Node, _d: u64) -> u64
 {
     //TODO process of signature
 
-    let mut rng = thread_rng();
+    let mut rng: ThreadRng = thread_rng();
     let random_number : u64 = rng.gen_range(1..=1000);
 
     return random_number;
@@ -304,8 +304,8 @@ fn send(_receiver: u64, _h: u64, _d: u64, _m: u64) -> u64
 {
     //TODO send a request to _receiver to have a signature
 
-    let mut rng = thread_rng();
-    let random_number : u64 = rng.gen_range(1..=1000);
+    let mut rng: ThreadRng = thread_rng();
+    let random_number: u64 = rng.gen_range(1..=1000);
     
     return random_number
 }

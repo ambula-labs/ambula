@@ -1,7 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use rand::{Rng, SeedableRng};
+use rand::{Rng, SeedableRng, thread_rng};
 use rand::rngs::StdRng;
 use rand_distr::{Distribution, Uniform};
 
@@ -51,7 +51,7 @@ impl NodeInfo for Node
 {
     fn get_infos(&self) {
         println!("Name : \"{}\"", &self.get_name());
-        println!("IP : {}\n", &self.get_ip());
+        println!("IP : {}", &self.get_ip());
         println!("Public Key : {}\n", &self.get_public_key());
     }
 }
@@ -176,6 +176,7 @@ fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
 //---------------------------------------------------------------------
 
 
+
 //---------------------------------------------------------------------
 // The function concat_u64_as_u64 is a function that concatenate 
 // u64s to create a u64.
@@ -190,11 +191,17 @@ fn concat_u64_as_u64(nums: &[u64]) -> u64 {
     }
     nums.iter().product()
 }
+//---------------------------------------------------------------------
 
+
+
+//---------------------------------------------------------------------
 // fn concat_u64_as_strings(nums: &[u64]) -> String {
 //     let num_strs: Vec<String> = nums.iter().map(|n| n.to_string()).collect();
 //     num_strs.concat()
 // }
+//---------------------------------------------------------------------
+
 
 
 //---------------------------------------------------------------------
@@ -211,6 +218,9 @@ fn verify_signature(u: &str, signature: u64, dependency: u64) -> bool
 {
     return true; // TODO once we have a signature mecanism setup
 }
+//---------------------------------------------------------------------
+
+
 
 
 //---------------------------------------------------------------------
@@ -225,6 +235,9 @@ fn hash(value: String) -> u64 {
     value.hash(&mut H);
     return H.finish();
 }
+//---------------------------------------------------------------------
+
+
 
 
 //---------------------------------------------------------------------
@@ -269,20 +282,36 @@ fn check_poi(proof: &Vec<u64>, u: &str, dependency: u64, message_root: u64, diff
     return true;
 }
 
+
+
+//---------------------------------------------------------------------
 fn sign(_n: &Node, _d: u64) -> u64
 {
     //TODO process of signature
 
-    return 1234560;
+    let mut rng = thread_rng();
+    let random_number : u64 = rng.gen_range(1..=1000);
+
+    return random_number;
 }
+//---------------------------------------------------------------------
 
 
-fn send(_receiver: u64, _h: u64, _d: u64, _m: String) -> u64
+
+
+//---------------------------------------------------------------------
+fn send(_receiver: u64, _h: u64, _d: u64, _m: u64) -> u64
 {
-    //TODO process of signature
+    //TODO send a request to _receiver to have a signature
 
-    return 5;
+    let mut rng = thread_rng();
+    let random_number : u64 = rng.gen_range(1..=1000);
+    
+    return random_number
 }
+//---------------------------------------------------------------------
+
+
 
 
 //---------------------------------------------------------------------
@@ -290,14 +319,14 @@ fn send(_receiver: u64, _h: u64, _d: u64, _m: String) -> u64
 //  
 // @param u0 : the node wich wants to push _m
 // @param _d : dependency (hash of last block of the blockchain)
-// @param _m : the message : the new block to push in the blockchain
+// @param _m : the message : the new block to push in the blockchain -> hash of this block
 // @param d1 : first parameter of the difficulty of the PoI
 // @param d2 : second parameter of the diffculty of the PoI
 // @param _n : the set of nodes in the network
 //
-// @return  : P, a list of signatures {s0, s1, s1', .., sk, sk'}
+// @return  : P, the PoI, a list of signatures {s0, s1, s1', .., sk, sk'}
 //---------------------------------------------------------------------
-fn generate_poi(u0: &Node, _d: u64, _m: String, d1: u64, d2: u64, _n: &Vec<Node>) -> Vec<u64>
+fn generate_poi(u0: &Node, _d: u64, _m: u64, d1: u64, d2: u64, _n: &Vec<Node>) -> Vec<u64>
 {
     let mut _p :Vec<u64> = Vec::new();                                  //the list of signatures                               
     let s0 : u64 = sign(&u0, _d);                                       //the signature of u0 (the node which wants to push _m)
@@ -312,18 +341,19 @@ fn generate_poi(u0: &Node, _d: u64, _m: String, d1: u64, d2: u64, _n: &Vec<Node>
 
     _p.push(s0);
 
-    let mut current_hash : u64 = 1;
-
+    let data_to_hash : u64 = concat_u64_as_u64(&[s0, _m]);
+    let mut current_hash : u64 = hash(data_to_hash.to_string());
+    
     let mut next_hop : u64;
     let mut sk : u64;
     for _k in 0.._l {
 
         next_hop = current_hash % (_s.len() as u64);
-        sk = send(next_hop, current_hash, _d, _m.clone());
+        sk = send(next_hop, current_hash, _d, _m);
         _p.push(sk);
         sk = sign(&u0, sk);
         _p.push(sk);
-        current_hash = 2;
+        current_hash = hash(sk.to_string());
     }
 
     return _p;
@@ -421,29 +451,33 @@ fn main() {
     _n.push(node_10);
 
     let last_block_hash : u64 = 54321;
-    let message : String = String::from("block1");
-    let _p : Vec<u64> = generate_poi(&_n[0],last_block_hash, message, 1, 20, &_n);
+    let block1 : u64 = 999;
+    let _p : Vec<u64> = generate_poi(&_n[0],last_block_hash, block1, 1, 20, &_n);
 
-    for _x in 0.._p.len() {
-        println!("{}", _p[_x]);
+    //Print the PoI :
+    let mut iterator = 0;
+    let mut index = 1;
+    loop {
+
+        if iterator == _p.len() { break; }
+
+        if iterator == 0 { println!("s0 : {}", _p[iterator]); }
+
+        else {
+
+            if iterator > 1 && iterator%2 == 1 { index += 1; }
+
+            if (iterator % 2) == 1 { println!("s{} : {}", index,_p[iterator]); }
+            
+            else { println!("s{}' : {}", index, _p[iterator]); }
+        }
+
+        iterator = iterator + 1;
     }  
 
     //Print N
     //for _x in 0.._n.len() {
     //    _n[_x].get_infos();
     //}  
-
-    /*
-    let s0: u64 = 1234560;                                   // signature (seed)
-    let mut _s : Vec<&Node> = create_services(s0, &_n);      // subset of N named S
-
-    //Print S
-    for _x in 0.._s.len() {
-        _s[_x].get_infos();
-    } 
-
-    let length_tour = tour_length(1, 20, s0);                //number of signatures required
-    println!("{} signatures required to validate and push the current block.", length_tour);
-    */
     
 }

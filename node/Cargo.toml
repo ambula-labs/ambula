@@ -63,6 +63,7 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/pari
 
 # Local Dependencies
 node-template-runtime = { version = "4.0.0-dev", path = "../runtime" }
+pallet-template-rpc = { version = "1.0.0", path = "../pallets/template/src/rpc" }
 
 # local packages
 pow = { path = '../consensus/pow' }

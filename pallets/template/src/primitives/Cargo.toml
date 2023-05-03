@@ -1,0 +1,34 @@
+[package]
+name = "sp-pallet-template"
+version = "4.0.0-dev"
+authors = ["Parity Technologies <admin@parity.io>"]
+description = "Template primitives"
+edition = "2021"
+license = "Apache-2.0"
+homepage = "https://substrate.io"
+repository = "https://github.com/paritytech/substrate/"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false }
+scale-info = { version = "2.1.1", default-features = false, features = [
+    "derive",
+] }
+sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-application-crypto = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+
+[features]
+default = ["std"]
+std = [
+    "sp-api/std",
+    "codec/std",
+    "scale-info/std",
+    "sp-application-crypto/std",
+    "sp-runtime/std",
+    "sp-std/std",
+]

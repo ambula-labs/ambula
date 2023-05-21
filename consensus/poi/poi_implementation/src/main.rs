@@ -178,18 +178,22 @@ fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
 
 
 //---------------------------------------------------------------------
-// The function concat_u64_as_u64 is a function that concatenate 
-// u64s to create a u64.
+// The function concat_u64_as_u128 is a function that concatenate 
+// u64s to create a u128.
 // 
 // @param nums : list of u64s
 //
 // @return u64 : the concatenation of the numbers
 //---------------------------------------------------------------------
-fn concat_u64_as_u64(nums: &[u64]) -> u64 {
-    if nums.is_empty() {
-        return 0;
+fn concat_u64_as_u128(nums: &[u64]) -> u128 {
+    let mut result = String::new();
+    for (i, &num) in nums.iter().enumerate() {
+        if i > 0 {
+            result.push('0');
+        }
+        result.push_str(&num.to_string());
     }
-    nums.iter().product()
+    result.parse::<u128>().expect("Overflow occurred")
 }
 //---------------------------------------------------------------------
 
@@ -214,7 +218,7 @@ fn concat_u64_as_u64(nums: &[u64]) -> u64 {
 //
 // @return bool : true if the signature is valid, false otherwise
 //---------------------------------------------------------------------
-fn verify_signature(u: &str, signature: u64, dependency: u64) -> bool
+fn verify_signature(u: &str, signature: u128, dependency: u128) -> bool
 {
     return true; // TODO once we have a signature mecanism setup
 }
@@ -254,7 +258,7 @@ fn hash(value: String) -> u64 {
 // @return bool : true if the proof of interaction is valid, false otherwise
 //---------------------------------------------------------------------
 fn check_poi(proof: &Vec<u64>, u: &str, dependency: u64, message_root: u64, difficulty: u64, _n: &Vec<Node>) -> bool {
-    if !verify_signature(u, proof[0], dependency) {
+    if !verify_signature(u, proof[0] as u128, dependency as u128) {
         return false;
     }
     let s: Vec<&Node> = create_services(proof[0], _n);
@@ -263,20 +267,20 @@ fn check_poi(proof: &Vec<u64>, u: &str, dependency: u64, message_root: u64, diff
         return false;
     }
 
-    let mut data_to_hash: u64 = concat_u64_as_u64(&[proof[0], message_root]);
+    let mut data_to_hash: u128 = concat_u64_as_u128(&[proof[0], message_root]);
     let mut current_hash: u64 = hash(data_to_hash.to_string());
 
     for i in 0..l as usize {
         let next_hop: usize = (current_hash % (s.len() as u64)) as usize;
         let next_node_key: &str = s[next_hop].get_public_key();
-        let to_check: u64 = concat_u64_as_u64(&[current_hash, dependency, message_root]);
-        if !verify_signature(next_node_key, proof[2*i+1], to_check) {
+        let to_check: u128 = concat_u64_as_u128(&[current_hash, dependency, message_root]);
+        if !verify_signature(next_node_key, proof[2*i+1] as u128, to_check) {
             return false;
         }
-        if !verify_signature(u, proof[2*i+2], proof[2*i+1]) {
+        if !verify_signature(u, proof[2*i+2] as u128, proof[2*i+1] as u128) {
             return false;
         }
-        data_to_hash = concat_u64_as_u64(&[proof[2*i+2]]);
+        data_to_hash = concat_u64_as_u128(&[proof[2*i+2]]);
         current_hash = hash(data_to_hash.to_string())
     }
     return true;
@@ -341,7 +345,7 @@ fn generate_poi(u0: &Node, _d: u64, _m: u64, d1: u64, d2: u64, _n: &Vec<Node>) -
 
     _p.push(s0);
 
-    let data_to_hash : u64 = concat_u64_as_u64(&[s0, _m]);
+    let data_to_hash : u128 = concat_u64_as_u128(&[s0, _m]);
     let mut current_hash : u64 = hash(data_to_hash.to_string());
     
     let mut next_hop : u64;

@@ -55,17 +55,20 @@ impl NodeInfo for Node {
 // @return Vec<&Node>: a subset of _n
 //---------------------------------------------------------------------
 fn create_services(seed: u64, _n: &Vec<Node>) -> Vec<&Node> {
-    let mut rng: StdRng = StdRng::seed_from_u64(seed);
-    let mut random_number: u64;
+    let mut rng: StdRng = initialize_rng(seed);
     let s_size: usize = 20.min(_n.len() / 2);
     let mut _s: Vec<&Node> = Vec::new();
+
     println!("Size of the set N: {}", _n.len());
     println!("s0: {}", seed);
     println!("Size of the subset S: {}\n", s_size);
+
     let mut x: usize = 0;
     let mut check_state: i32 = 0;
+    let mut random_number: u64;
+    let network_size = _n.len() as u64;
     loop {
-        random_number = rng.gen::<u64>() % (_n.len() as u64);
+        random_number = rng.gen::<u64>() % network_size;
         let node_tmp: &Node = &_n[random_number as usize];
         let mut y: usize = 0;
         loop {
@@ -96,6 +99,18 @@ fn create_services(seed: u64, _n: &Vec<Node>) -> Vec<&Node> {
 
 
 //---------------------------------------------------------------------
+// Initializases the RNG with the provided seed.
+// 
+// @param seed: seed to create the RNG
+// 
+// @return StdRng: the initialized RNG
+//---------------------------------------------------------------------
+fn initialize_rng(seed: u64) -> StdRng {
+    StdRng::seed_from_u64(seed)
+}
+
+
+//---------------------------------------------------------------------
 // The function get_tour_length_distribution is a random number generator,
 // seeded with s0 that generates a number according to a probabilistic
 // distribution. This number represents the number of signatures required
@@ -109,7 +124,7 @@ fn create_services(seed: u64, _n: &Vec<Node>) -> Vec<&Node> {
 // @return f64: the random length
 //---------------------------------------------------------------------
 fn get_tour_length_distribution(distribution: &Normal<f64>, seed: u64) -> f64 {
-    let mut rng: StdRng = StdRng::seed_from_u64(seed);
+    let mut rng: StdRng = initialize_rng(seed);
     let value: f64 = distribution.sample(&mut rng);
     value
 }

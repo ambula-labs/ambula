@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 // use rand::prelude::*;
 use rand::{Rng, SeedableRng, thread_rng};
 use rand::rngs::{StdRng, ThreadRng};
-use rand_distr::{Normal, Distribution, Uniform};
+use rand_distr::{Normal, Distribution};
 
 //---------------------------------------------------------------------
 // Définition of a Node structure
@@ -57,7 +57,6 @@ impl NodeInfo for Node
     }
 }
 //---------------------------------------------------------------------
-
 
 
 //---------------------------------------------------------------------
@@ -120,37 +119,6 @@ fn create_services(seed: u64, _n: &Vec<Node>) -> Vec<&Node>
 //---------------------------------------------------------------------
 
 
-
-/*
-//---------------------------------------------------------------------
-// The function tour_length is a random number generator, seeded with s0
-// that generates a number according to probabilistic distribution. This
-// number represent the number of signature required to validate and push
-// the current block.
-//
-// Probabilistic distribution : Normal distribution (not use)
-//
-// @param d1 : first parameter of normal distribution (mean)
-// @param d2 : second parameter of normal distribution (std_dev)
-// @param seed : seed to create a RNG 
-//
-// @return u64 : the random length
-//---------------------------------------------------------------------
-fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
-{
-    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-
-    let mean = d1 as f64;
-    let std_dev = d2 as f64;
-    let normal = Normal::new(mean, std_dev).unwrap();   
-    let value: f64 = normal.sample(&mut rng);
-
-    return value as u64;
-}
-//---------------------------------------------------------------------
-*/
-
-
 //---------------------------------------------------------------------
 // The function get_tour_length_distribution is a random number generator,
 // seeded with s0 that generates a number according to probabilistic
@@ -171,7 +139,6 @@ fn get_tour_length_distribution(distribution: &Normal<f64>, seed: u64) -> f64 {
 }
 
 
-
 //---------------------------------------------------------------------
 // The function tour_length is a random number generator, seeded with s0
 // that generates a number according to probabilistic distribution. This
@@ -188,7 +155,6 @@ fn get_tour_length_distribution(distribution: &Normal<f64>, seed: u64) -> f64 {
 // @return u64 : the random length
 //---------------------------------------------------------------------
 fn tour_length(min_length: u64, difficulty: f64, standard_deviation: f64, seed: u64) -> u64 {
-    let std_deviation_coefficient: f64 =
     let distribution_result: Result<Normal<f64>, rand_distr::NormalError> = Normal::new(difficulty, standard_deviation);
     let distribution: Normal<f64> = distribution_result.unwrap(); // Extract the value or panic on error
     let value: u64 = get_tour_length_distribution(&distribution, seed).round() as u64;
@@ -196,7 +162,6 @@ fn tour_length(min_length: u64, difficulty: f64, standard_deviation: f64, seed: 
     clamped_value
 }
 //---------------------------------------------------------------------
-
 
 
 //---------------------------------------------------------------------
@@ -220,16 +185,6 @@ fn concat_u64_as_u128(nums: &[u64]) -> u128 {
 //---------------------------------------------------------------------
 
 
-
-//---------------------------------------------------------------------
-// fn concat_u64_as_strings(nums: &[u64]) -> String {
-//     let num_strs: Vec<String> = nums.iter().map(|n| n.to_string()).collect();
-//     num_strs.concat()
-// }
-//---------------------------------------------------------------------
-
-
-
 //---------------------------------------------------------------------
 // The function verify_signature is a function that verifies that
 // `signature` is a signature of `dependency` by `u`.
@@ -247,8 +202,6 @@ fn verify_signature(u: &str, signature: u128, dependency: u128) -> bool
 //---------------------------------------------------------------------
 
 
-
-
 //---------------------------------------------------------------------
 // The function hash is a function that hashes a string.
 //
@@ -262,7 +215,6 @@ fn hash(value: String) -> u64 {
     return h.finish();
 }
 //---------------------------------------------------------------------
-
 
 
 //---------------------------------------------------------------------
@@ -310,7 +262,7 @@ fn check_poi(proof: &Vec<u64>, u: &str, dependency: u64, message_root: u64, diff
     }
     return true;
 }
-
+//---------------------------------------------------------------------
 
 
 //---------------------------------------------------------------------
@@ -326,8 +278,6 @@ fn sign(_n: &Node, _d: u64) -> u64
 //---------------------------------------------------------------------
 
 
-
-
 //---------------------------------------------------------------------
 fn send(_receiver: u64, _h: u64, _d: u64, _m: u64) -> u64
 {
@@ -339,8 +289,6 @@ fn send(_receiver: u64, _h: u64, _d: u64, _m: u64) -> u64
     return random_number
 }
 //---------------------------------------------------------------------
-
-
 
 
 //---------------------------------------------------------------------
@@ -355,15 +303,17 @@ fn send(_receiver: u64, _h: u64, _d: u64, _m: u64) -> u64
 //
 // @return  : P, the PoI, a list of signatures {s0, s1, s1', .., sk, sk'}
 //---------------------------------------------------------------------
-fn generate_poi(u0: &Node, _d: u64, _m: u64, d1: u64, d2: u64, _n: &Vec<Node>) -> Vec<u64>
+fn generate_poi(u0: &Node, _d: u64, _m: u64, difficulty: f64, _n: &Vec<Node>) -> Vec<u64>
 {
     let mut _p :Vec<u64> = Vec::new();                                  //the list of signatures                               
     let s0 : u64 = sign(&u0, _d);                                       //the signature of u0 (the node which wants to push _m)
     let mut _s : Vec<&Node>  = create_services(s0, &_n);             
+
     let network_size: u64 = _n.len() as u64;
+    let std_deviation_coefficient: f64 = 0.1;
+
        //the subset of _n, use to get the differents signatures
-    let _l : u64 = tour_length(d1, d2, s0);       
-    let _l: u64 = tour_length(network_size, difficulty, network_size as f64 * std_deviation_coefficient, proof[0]);
+    let _l: u64 = tour_length(network_size, difficulty, network_size as f64 * std_deviation_coefficient, s0);
                           //number of signatures required to push _m
 
     //Print S
@@ -485,7 +435,8 @@ fn main() {
 
     let last_block_hash : u64 = 54321;
     let block1 : u64 = 999;
-    let _p : Vec<u64> = generate_poi(&_n[0],last_block_hash, block1, 1, 20, &_n);
+    let difficulty: f64 = 20.0;
+    let _p : Vec<u64> = generate_poi(&_n[0],last_block_hash, block1, difficulty, &_n);
 
     //Print the PoI :
     let mut iterator = 0;

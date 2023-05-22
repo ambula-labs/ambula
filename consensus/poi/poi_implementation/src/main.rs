@@ -50,51 +50,52 @@ impl NodeInfo for Node {
 // This function creates a pseudo-random subset of nodes named S.
 //
 // @param seed: seed to create an RNG and generate a random size for S
-// @param _n: set of nodes
+// @param network_nodes: set of nodes
 //
 // @return Vec<&Node>: a subset of _n
 //---------------------------------------------------------------------
-fn create_services(seed: u64, _n: &Vec<Node>) -> Vec<&Node> {
+fn create_services(seed: u64, network_nodes: &Vec<Node>) -> Vec<&Node> {
     let mut rng: StdRng = initialize_rng(seed);
-    let s_size: usize = 20.min(_n.len() / 2);
-    let mut _s: Vec<&Node> = Vec::new();
+    let network_size = network_nodes.len() as u64;
+    let subset_size: u64 = 20.min(network_size / 2);
+    let mut services: Vec<&Node> = Vec::new();
 
-    println!("Size of the set N: {}", _n.len());
+    println!("Size of the set N: {}", network_size);
     println!("s0: {}", seed);
-    println!("Size of the subset S: {}\n", s_size);
+    println!("Size of the subset S: {}\n", subset_size);
 
-    let mut x: usize = 0;
+    let mut x: u64 = 0;
     let mut check_state: i32 = 0;
     let mut random_number: u64;
-    let network_size = _n.len() as u64;
+    
     loop {
         random_number = rng.gen::<u64>() % network_size;
-        let node_tmp: &Node = &_n[random_number as usize];
+        let node_tmp: &Node = &network_nodes[random_number as usize];
         let mut y: usize = 0;
         loop {
-            if _s.len() == 0 {
+            if services.len() == 0 {
                 break;
             }
-            if node_tmp.get_name() == _s[y].get_name() {
+            if node_tmp.get_name() == services[y].get_name() {
                 check_state = 1;
                 break;
             } else {
-                y = y + 1;
+                y += 1;
             }
-            if y == _s.len() {
+            if y == services.len() {
                 break;
             }
         }
         if check_state == 0 {
-            _s.push(node_tmp);
-            x = x + 1;
+            services.push(node_tmp);
+            x += 1;
         }
         check_state = 0;
-        if x == s_size {
+        if x == subset_size {
             break;
         }
     }
-    _s
+    services
 }
 
 
@@ -183,7 +184,7 @@ fn concat_u64_as_u128(nums: &[u64]) -> u128 {
 //
 // @return bool: true if the signature is valid, false otherwise
 //---------------------------------------------------------------------
-fn verify_signature(u: &str, signature: u128, dependency: u128) -> bool {
+fn verify_signature(_u: &str, _signature: u128, _dependency: u128) -> bool {
     // TODO once we have a signature mechanism set up
     true
 }
@@ -212,31 +213,33 @@ fn hash(value: String) -> u64 {
 // @param dependency: the dependency to verify
 // @param message_root: the root of the message
 // @param difficulty: the difficulty of the proof of interaction
-// @param _n: the set of nodes
+// @param network_nodes: the set of nodes
 //
 // @return bool: true if the proof of interaction is valid, false otherwise
 //---------------------------------------------------------------------
-fn check_poi(proof: &Vec<u64>, u: &str, dependency: u64, message_root: u64, difficulty: f64, _n: &Vec<Node>) -> bool {
-    if !verify_signature(u, proof[0] as u128, dependency as u128) {
+fn check_poi(proof: &Vec<u64>, signer_key: &str, dependency: u64, message_root: u64, difficulty: f64, network_nodes: &Vec<Node>) -> bool {
+    if !verify_signature(signer_key, proof[0] as u128, dependency as u128) {
         return false;
     }
-    let network_size: u64 = _n.len() as u64;
+    let network_size: u64 = network_nodes.len() as u64;
     let std_deviation_coefficient: f64 = 0.1;
-    let s: Vec<&Node> = create_services(proof[0], _n);
-    let l: u64 = tour_length(network_size, difficulty, network_size as f64 * std_deviation_coefficient, proof[0]);
-    if 2 * l + 1 != proof.len() as u64 {
+    let services: Vec<&Node> = create_services(proof[0], network_nodes);
+    let length: u64 = tour_length(network_size, difficulty, network_size as f64 * std_deviation_coefficient, proof[0]);
+
+    if 2 * length + 1 != proof.len() as u64 {
         return false;
     }
+
     let mut data_to_hash: u128 = concat_u64_as_u128(&[proof[0], message_root]);
     let mut current_hash: u64 = hash(data_to_hash.to_string());
-    for i in 0..l as usize {
-        let next_hop: usize = (current_hash % (s.len() as u64)) as usize;
-        let next_node_key: &str = s[next_hop].get_public_key();
+    for i in 0..length as usize {
+        let next_hop: usize = (current_hash % (services.len() as u64)) as usize;
+        let next_node_key: &str = services[next_hop].get_public_key();
         let to_check: u128 = concat_u64_as_u128(&[current_hash, dependency, message_root]);
         if !verify_signature(next_node_key, proof[2 * i + 1] as u128, to_check) {
             return false;
         }
-        if !verify_signature(u, proof[2 * i + 2] as u128, proof[2 * i + 1] as u128) {
+        if !verify_signature(signer_key, proof[2 * i + 2] as u128, proof[2 * i + 1] as u128) {
             return false;
         }
         data_to_hash = concat_u64_as_u128(&[proof[2 * i + 2]]);
@@ -268,38 +271,39 @@ fn send(_receiver: u64, _h: u64, _d: u64, _m: u64) -> u64 {
 // This function is executed by u0 to generate the PoI
 //
 // @param u0: the node which wants to push _m
-// @param _d: dependency (hash of the last block of the blockchain)
-// @param _m: the message: the new block to push in the blockchain -> hash of this block
+// @param last_block_hash: dependency (hash of the last block of the blockchain)
+// @param new_block_hash: the message: the new block to push in the blockchain -> hash of this block
 // @param difficulty: first parameter of the difficulty of the PoI
-// @param _n: the set of nodes in the network
+// @param network_nodes: the set of nodes in the network
 //
 // @return: P, the PoI, a list of signatures {s0, s1, s1', .., sk, sk'}
 //---------------------------------------------------------------------
-fn generate_poi(u0: &Node, _d: u64, _m: u64, difficulty: f64, _n: &Vec<Node>) -> Vec<u64> {
-    let mut _p: Vec<u64> = Vec::new();
-    let s0: u64 = sign(&u0, _d);
-    let mut _s: Vec<&Node> = create_services(s0, &_n);
-    let network_size: u64 = _n.len() as u64;
+fn generate_poi(u0: &Node, last_block_hash: u64, new_block_hash: u64, difficulty: f64, network_nodes: &Vec<Node>) -> Vec<u64> {
+    let mut proofs: Vec<u64> = Vec::new();
+    let s0: u64 = sign(&u0, last_block_hash);
+    let mut services: Vec<&Node> = create_services(s0, &network_nodes);
+    let network_size: u64 = network_nodes.len() as u64;
     let std_deviation_coefficient: f64 = 0.1;
-    let _l: u64 = tour_length(network_size, difficulty, network_size as f64 * std_deviation_coefficient, s0);
-    for _x in 0.._s.len() {
-        _s[_x].get_infos();
+    let length: u64 = tour_length(network_size, difficulty, network_size as f64 * std_deviation_coefficient, s0);
+    for node in 0..services.len() {
+        services[node].get_infos();
     }
-    println!("{} signatures required to validate and push the current block.", _l);
-    _p.push(s0);
-    let data_to_hash: u128 = concat_u64_as_u128(&[s0, _m]);
-    let mut current_hash: u64 = hash(data_to_hash.to_string());
-    let mut next_hop: u64;
+    println!("{} signatures required to validate and push the current block.", length);
+    proofs.push(s0);
+    let data_to_hash: u128 = concat_u64_as_u128(&[s0, new_block_hash]);
+
     let mut sk: u64;
-    for _k in 0.._l {
-        next_hop = current_hash % (_s.len() as u64);
-        sk = send(next_hop, current_hash, _d, _m);
-        _p.push(sk);
+    let mut next_hop: u64;
+    let mut current_hash: u64 = hash(data_to_hash.to_string());
+    for _k in 0..length {
+        next_hop = current_hash % (services.len() as u64);
+        sk = send(next_hop, current_hash, last_block_hash, new_block_hash);
+        proofs.push(sk);
         sk = sign(&u0, sk);
-        _p.push(sk);
+        proofs.push(sk);
         current_hash = hash(sk.to_string());
     }
-    _p
+    proofs
 }
 
 

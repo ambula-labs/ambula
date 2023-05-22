@@ -217,10 +217,11 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 	let rpc_extensions_builder = {
 		let client = client.clone();
 		let pool = transaction_pool.clone();
+		let keystore = keystore_container.sync_keystore();
 
 		Box::new(move |deny_unsafe, _| {
 			let deps =
-				crate::rpc::FullDeps { client: client.clone(), pool: pool.clone(), deny_unsafe };
+				crate::rpc::FullDeps { client: client.clone(), pool: pool.clone(), deny_unsafe, keystore: keystore.clone() };
 			crate::rpc::create_full(deps).map_err(Into::into)
 		})
 	};
@@ -304,7 +305,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 		.iter()
 		.map(|k| sr25519::Public::from(k.clone()))
 		.collect();
-		
+
 		// Use authority-discovery session key to sign a message (should use a different ECDSA session key KEY_TYPE instead)
 		let signature = SyncCryptoStore::sign_with(
 			&*keystore_container.sync_keystore(),

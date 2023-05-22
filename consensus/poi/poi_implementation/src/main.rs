@@ -1,9 +1,10 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+// use rand::prelude::*;
 use rand::{Rng, SeedableRng, thread_rng};
 use rand::rngs::{StdRng, ThreadRng};
-use rand_distr::{Distribution, Uniform};
+use rand_distr::{Normal, Distribution, Uniform};
 
 //---------------------------------------------------------------------
 // Définition of a Node structure
@@ -150,6 +151,26 @@ fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
 */
 
 
+//---------------------------------------------------------------------
+// The function get_tour_length_distribution is a random number generator,
+// seeded with s0 that generates a number according to probabilistic
+// distribution. This number represent the number of signature required
+// to validate and push the current block.
+//
+// Probabilistic distribution : Normal distribution
+//
+// @param distribution : normal distribution
+// @param seed : seed to create a RNG
+// 
+// @return f64 : the random length
+//---------------------------------------------------------------------
+fn get_tour_length_distribution(distribution: &Normal<f64>, seed: u64) -> f64 {
+    let mut rng: StdRng = StdRng::seed_from_u64(seed);
+    let value: f64 = distribution.sample(&mut rng);
+    value
+}
+
+
 
 //---------------------------------------------------------------------
 // The function tour_length is a random number generator, seeded with s0
@@ -157,21 +178,22 @@ fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
 // number represent the number of signature required to validate and push
 // the current block.
 //
-// Probabilistic distribution : Uniform distribution
+// Probabilistic distribution : Normal distribution
 //
-// @param d1 : first parameter of uniform distribution (lower range)
-// @param d2 : second parameter of uniform distribution (upper range)
-// @param seed : seed to create a RNG 
+// @param min_length : minimum length of the tour
+// @param difficulty : current difficulty of the network
+// @param standard_deviation : chosen standard deviation
+// @param seed : seed to create a RNG
 //
 // @return u64 : the random length
 //---------------------------------------------------------------------
-fn tour_length(d1: u64, d2: u64, seed: u64) -> u64
-{
-    let mut rng: StdRng = StdRng::seed_from_u64(seed);
-    let range: Uniform<u64> = Uniform::new_inclusive(d1, d2);
-    let value: u64 = range.sample(&mut rng);
-
-    return value;
+fn tour_length(min_length: u64, difficulty: f64, standard_deviation: f64, seed: u64) -> u64 {
+    let std_deviation_coefficient: f64 =
+    let distribution_result: Result<Normal<f64>, rand_distr::NormalError> = Normal::new(difficulty, standard_deviation);
+    let distribution: Normal<f64> = distribution_result.unwrap(); // Extract the value or panic on error
+    let value: u64 = get_tour_length_distribution(&distribution, seed).round() as u64;
+    let clamped_value: u64 = value.max(min_length);
+    clamped_value
 }
 //---------------------------------------------------------------------
 
@@ -243,7 +265,6 @@ fn hash(value: String) -> u64 {
 
 
 
-
 //---------------------------------------------------------------------
 // The function check_poi is a function that verifies that the proof
 // of interaction is valid.
@@ -257,12 +278,16 @@ fn hash(value: String) -> u64 {
 //
 // @return bool : true if the proof of interaction is valid, false otherwise
 //---------------------------------------------------------------------
-fn check_poi(proof: &Vec<u64>, u: &str, dependency: u64, message_root: u64, difficulty: u64, _n: &Vec<Node>) -> bool {
+fn check_poi(proof: &Vec<u64>, u: &str, dependency: u64, message_root: u64, difficulty: f64, _n: &Vec<Node>) -> bool {
     if !verify_signature(u, proof[0] as u128, dependency as u128) {
         return false;
     }
+    
+    let network_size: u64 = _n.len() as u64;
+    let std_deviation_coefficient: f64 = 0.1;
+
     let s: Vec<&Node> = create_services(proof[0], _n);
-    let l: u64 = tour_length(1, 20, proof[0]);
+    let l: u64 = tour_length(network_size, difficulty, network_size as f64 * std_deviation_coefficient, proof[0]);
     if 2*l + 1 != proof.len() as u64 {
         return false;
     }
@@ -334,8 +359,12 @@ fn generate_poi(u0: &Node, _d: u64, _m: u64, d1: u64, d2: u64, _n: &Vec<Node>) -
 {
     let mut _p :Vec<u64> = Vec::new();                                  //the list of signatures                               
     let s0 : u64 = sign(&u0, _d);                                       //the signature of u0 (the node which wants to push _m)
-    let mut _s : Vec<&Node>  = create_services(s0, &_n);                //the subset of _n, use to get the differents signatures
-    let _l : u64 = tour_length(d1, d2, s0);                             //number of signatures required to push _m
+    let mut _s : Vec<&Node>  = create_services(s0, &_n);             
+    let network_size: u64 = _n.len() as u64;
+       //the subset of _n, use to get the differents signatures
+    let _l : u64 = tour_length(d1, d2, s0);       
+    let _l: u64 = tour_length(network_size, difficulty, network_size as f64 * std_deviation_coefficient, proof[0]);
+                          //number of signatures required to push _m
 
     //Print S
     for _x in 0.._s.len() {

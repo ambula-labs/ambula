@@ -5,6 +5,9 @@ FROM docker.io/paritytech/ci-linux:production as builder
 
 WORKDIR /node-template
 COPY . .
+RUN rustup toolchain install nightly-2023-03-20 --force
+RUN rustup default nightly-2023-03-20-x86_64-unknown-linux-gnu
+RUN rustup target add wasm32-unknown-unknown --toolchain nightly-2023-03-20-x86_64-unknown-linux-gnu
 RUN cargo build --locked --release
 
 # This is the 2nd stage: a very small image where we copy the binary."

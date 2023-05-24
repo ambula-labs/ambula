@@ -1,5 +1,13 @@
 # Substrate PoI node
 
+## Introduction
+
+This repository is a fork of the substrate node-template.  
+We modified the consensus layer from Aura to Proof-of-Work (PoW). We then tried to replace PoW with a new consensus, Proof-of-Interaction (PoI, [paper link](https://hal.archives-ouvertes.fr/hal-02479891/document)).
+The PoW consensus is designed to do local-only computations but the PoI consensus needed the ability to get the network address of other validator nodes. So we integrated the authority-discovery pallet to the PoW node to be able to retrieve other nodes network addresses. We also added a custom RPC method to the node that is able to sign arbitrary messages sent to the nodes (feature needed to do the interaction/signing part of PoI).
+
+The technology stack used is: the Rust programming language and the Substrate blockchain framework.
+
 ## Dependencies
 
 Depending on your operating system and Rust version, there might be additional packages required to compile this template.

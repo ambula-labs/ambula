@@ -409,42 +409,42 @@ async fn main() -> Result<(), Error> {
     //Déclaration node n°1
     let node_1 = Node {
         name : String::from("Alice"),
-        ip : String::from("http://127.0.0.1:9933/"),
+        ip : String::from("http://45.79.146.40:9933/"),
         public_key : String::from("abcdefga")
     };
 
     //Déclaration node n°2
     let node_2 = Node {
         name : String::from("Bob"),
-        ip : String::from("http://127.0.0.1:9933/"),
+        ip : String::from("http://45.79.136.216:9933/"),
         public_key : String::from("abcdefgb")
     };
 
     //Déclaration node n°3
     let node_3 = Node {
         name : String::from("Charlie"),
-        ip : String::from("http://127.0.0.1:9933/"),
+        ip : String::from("http://45.79.136.230:9933/"),
         public_key : String::from("abcdefgc")
     };
 
     //Déclaration node n°4
     let node_4 = Node {
         name : String::from("Dave"),
-        ip : String::from("http://127.0.0.1:9933/"),
+        ip : String::from("http://45.33.84.69:9933/"),
         public_key : String::from("abcdefgd")
     };
 
     //Déclaration node n°5
     let node_5 = Node {
         name : String::from("Eve"),
-        ip : String::from("http://127.0.0.1:9933/"),
+        ip : String::from("http://45.33.84.102:9933/"),
         public_key : String::from("abcdefge")
     };
 
     //Déclaration node n°6
     let node_6 = Node {
         name : String::from("Ferdie"),
-        ip : String::from("http://127.0.0.1:9933/"),
+        ip : String::from("http://139.144.233.205:9933/"),
         public_key : String::from("abcdefgf")
     };
 

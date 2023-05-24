@@ -4,6 +4,15 @@ use rand::{Rng, SeedableRng, thread_rng};
 use rand::rngs::{StdRng, ThreadRng};
 use rand_distr::{Normal, Distribution};
 
+use reqwest::Error;
+use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use num_bigint::BigUint;
+use num_traits::Num;
+use primitive_types::H512;
+
 //---------------------------------------------------------------------
 // Definition of a Node structure
 //---------------------------------------------------------------------
@@ -256,15 +265,65 @@ fn sign(_n: &Node, _d: u64) -> u64 {
     let random_number: u64 = rng.gen_range(1..=1000);
     random_number
 }
+//---------------------------------------------------------------------
+
 
 
 //---------------------------------------------------------------------
-fn send(_receiver: u64, _h: u64, _d: u64, _m: u64) -> u64 {
-    // TODO send a request to _receiver to have a signature
-    let mut rng: ThreadRng = thread_rng();
-    let random_number: u64 = rng.gen_range(1..=1000);
+fn signB(_n: &Node, _d: &BigUint) -> BigUint {
+    // TODO: Perform the signature process
+
+    let mut rng = rand::thread_rng();
+    let random_number: BigUint = rng.gen_range(1u64..=1000u64).into();
+
     random_number
 }
+//---------------------------------------------------------------------
+
+
+
+//---------------------------------------------------------------------
+//This function send a HTTP request to 'url' with parameters 'payload'
+// and receive a signature of 'url'.
+//---------------------------------------------------------------------
+async fn send(url: &str, payload: &serde_json::Value) -> Result<String, Error>
+{
+    match send_request(url, &payload).await {
+        Ok(response) => {
+            let status = response.status();
+            let body = response.text().await?;
+
+            // Parse the body into JSON format
+            let parsed: Value = serde_json::from_str(&body).unwrap();
+            let signature = parsed["result"].as_str().unwrap().to_string();
+
+            Ok(signature)
+
+        }
+        Err(err) => {
+            eprintln!("Error: {}", err);
+            Err(err.into())
+        }
+    }
+}
+//---------------------------------------------------------------------
+
+
+
+//---------------------------------------------------------------------
+async fn send_request(url: &str, payload: &serde_json::Value) -> Result<reqwest::Response, reqwest::Error> {
+    let client = reqwest::Client::new();
+
+    let response = client.post(url)
+        .header("Content-Type", "application/json")
+        .body(payload.to_string())
+        .send()
+        .await?;
+
+    Ok(response)
+}
+//---------------------------------------------------------------------
+
 
 
 //---------------------------------------------------------------------
@@ -278,30 +337,64 @@ fn send(_receiver: u64, _h: u64, _d: u64, _m: u64) -> u64 {
 //
 // @return: P, the PoI, a list of signatures {s0, s1, s1', .., sk, sk'}
 //---------------------------------------------------------------------
-fn generate_poi(u0: &Node, last_block_hash: u64, new_block_hash: u64, difficulty: f64, network_nodes: &Vec<Node>) -> Vec<u64> {
-    let mut proofs: Vec<u64> = Vec::new();
+async fn generate_poi(u0: &Node, last_block_hash: u64, new_block_hash: u64, difficulty: f64, network_nodes: &Vec<Node>) -> Vec<String> {
+    let mut proofs: Vec<String> = Vec::new();
     let s0: u64 = sign(&u0, last_block_hash);
     let mut services: Vec<&Node> = create_services(s0, &network_nodes);
     let network_size: u64 = network_nodes.len() as u64;
     let std_deviation_coefficient: f64 = 0.1;
     let length: u64 = tour_length(network_size, difficulty, network_size as f64 * std_deviation_coefficient, s0);
+
     for node in 0..services.len() {
         services[node].get_infos();
     }
     println!("{} signatures required to validate and push the current block.", length);
-    proofs.push(s0);
+    
+    proofs.push(s0.to_string());
     let data_to_hash: u128 = concat_u64_as_u128(&[s0, new_block_hash]);
 
-    let mut sk: u64;
+    let mut sk: BigUint;
     let mut next_hop: u64;
     let mut current_hash: u64 = hash(data_to_hash.to_string());
     for _k in 0..length {
+
         next_hop = current_hash % (services.len() as u64);
-        sk = send(next_hop, current_hash, last_block_hash, new_block_hash);
-        proofs.push(sk);
-        sk = sign(&u0, sk);
-        proofs.push(sk);
-        current_hash = hash(sk.to_string());
+
+        let url = services[next_hop as usize].get_ip();
+        let payload = json!({
+            "id": 1,
+            "jsonrpc": "2.0",
+            "method": "sign",
+            "params": [current_hash.to_string()]
+        });
+
+        println!("Envoie du message à {}.", url);
+        match send(url, &payload,).await {
+            Ok(signature) => {
+
+                println!("Signature obtenue : {}\n", signature);
+
+                let hex_string_without_prefix = signature.trim_start_matches("0x");
+                if let Ok(number) = BigUint::from_str_radix(&hex_string_without_prefix, 16) {
+
+                    let signature_slice: &[u8] = &number.to_bytes_be(); 
+                    sk = number;
+                    proofs.push(signature);
+                    sk = signB(&u0, &sk);
+                    proofs.push(sk.to_string());
+                    current_hash = hash(sk.to_string());
+
+                } else {
+                    eprintln!("Failed to convert the hexadecimal string to u64");
+                }
+
+                
+            }
+            Err(err) => {
+                eprintln!("Error: {}", err);
+            }
+        }  
+
     }
     proofs
 }
@@ -310,101 +403,86 @@ fn generate_poi(u0: &Node, last_block_hash: u64, new_block_hash: u64, difficulty
 //---------------------------------------------------------------------
 // MAIN
 //---------------------------------------------------------------------
-fn main() {
-    // Declaration node n°1
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+
+    //Déclaration node n°1
     let node_1 = Node {
-        name: String::from("Node n°1"),
-        ip: String::from("127.0.0.1"),
-        public_key: String::from("abcdefga"),
+        name : String::from("Alice"),
+        ip : String::from("http://45.79.146.40:9933/"),
+        public_key : String::from("abcdefga")
     };
-    // Declaration node n°2
+
+    //Déclaration node n°2
     let node_2 = Node {
-        name: String::from("Node n°2"),
-        ip: String::from("127.0.0.2"),
-        public_key: String::from("abcdefgb"),
+        name : String::from("Bob"),
+        ip : String::from("http://45.79.136.216:9933/"),
+        public_key : String::from("abcdefgb")
     };
-    // Declaration node n°3
+
+    //Déclaration node n°3
     let node_3 = Node {
-        name: String::from("Node n°3"),
-        ip: String::from("127.0.0.3"),
-        public_key: String::from("abcdefgc"),
+        name : String::from("Charlie"),
+        ip : String::from("http://45.79.136.230:9933/"),
+        public_key : String::from("abcdefgc")
     };
-    // Declaration node n°4
+
+    //Déclaration node n°4
     let node_4 = Node {
-        name: String::from("Node n°4"),
-        ip: String::from("127.0.0.4"),
-        public_key: String::from("abcdefgd"),
+        name : String::from("Dave"),
+        ip : String::from("http://45.33.84.69:9933/"),
+        public_key : String::from("abcdefgd")
     };
-    // Declaration node n°5
+
+    //Déclaration node n°5
     let node_5 = Node {
-        name: String::from("Node n°5"),
-        ip: String::from("127.0.0.5"),
-        public_key: String::from("abcdefge"),
+        name : String::from("Eve"),
+        ip : String::from("http://45.33.84.102:9933/"),
+        public_key : String::from("abcdefge")
     };
-    // Declaration node n°6
+
+    //Déclaration node n°6
     let node_6 = Node {
-        name: String::from("Node n°6"),
-        ip: String::from("127.0.0.6"),
-        public_key: String::from("abcdefgf"),
+        name : String::from("Ferdie"),
+        ip : String::from("http://139.144.233.205:9933/"),
+        public_key : String::from("abcdefgf")
     };
-    // Declaration node n°7
-    let node_7 = Node {
-        name: String::from("Node n°7"),
-        ip: String::from("127.0.0.7"),
-        public_key: String::from("abcdefgg"),
-    };
-    // Declaration node n°8
-    let node_8 = Node {
-        name: String::from("Node n°8"),
-        ip: String::from("127.0.0.8"),
-        public_key: String::from("abcdefgh"),
-    };
-    // Declaration node n°9
-    let node_9 = Node {
-        name: String::from("Node n°9"),
-        ip: String::from("127.0.0.9"),
-        public_key: String::from("abcdefgi"),
-    };
-    // Declaration node n°10
-    let node_10 = Node {
-        name: String::from("Node n°10"),
-        ip: String::from("127.0.0.10"),
-        public_key: String::from("abcdefgj"),
-    };
-    // Declaration of the Node set N
-    let mut _n: Vec<Node> = Vec::new();
+
+
+    //Déclaration of the Node set N
+    let mut _n :Vec<Node> = Vec::new();
     _n.push(node_1);
     _n.push(node_2);
     _n.push(node_3);
     _n.push(node_4);
     _n.push(node_5);
     _n.push(node_6);
-    _n.push(node_7);
-    _n.push(node_8);
-    _n.push(node_9);
-    _n.push(node_10);
+
     let last_block_hash: u64 = 54321;
     let block1: u64 = 999;
     let difficulty: f64 = 20.0;
-    let _p: Vec<u64> = generate_poi(&_n[0], last_block_hash, block1, difficulty, &_n);
+    let _p: Vec<String> = generate_poi(&_n[0], last_block_hash, block1, difficulty, &_n).await;
+
+    //Print the PoI :
     let mut iterator = 0;
     let mut index = 1;
     loop {
-        if iterator == _p.len() {
-            break;
+
+        if iterator == _p.len() { break; }
+
+        if iterator == 0 { println!("s0 : {}", _p[iterator]); }
+
+        else {
+
+            if iterator > 1 && iterator%2 == 1 { index += 1; }
+
+            if (iterator % 2) == 1 { println!("s{} : {}", index,_p[iterator]); }
+            
+            else { println!("s{}' : {}", index, _p[iterator]); }
         }
-        if iterator == 0 {
-            println!("s0: {}", _p[iterator]);
-        } else {
-            if iterator > 1 && iterator % 2 == 1 {
-                index += 1;
-            }
-            if iterator % 2 == 1 {
-                println!("s{}: {}", index, _p[iterator]);
-            } else {
-                println!("s{}': {}", index, _p[iterator]);
-            }
-        }
+
         iterator = iterator + 1;
-    }
+    }   
+
+    Ok(())
 }

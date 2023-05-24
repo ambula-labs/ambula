@@ -13,6 +13,14 @@ The technology stack used is: the Rust programming language and the Substrate bl
 Depending on your operating system and Rust version, there might be additional packages required to compile this template.
 Check the [Install](https://docs.substrate.io/install/) instructions for your platform for the most common dependencies.
 
+As there is currently a bug with the latest version of rust, you will then have to rollback your rust version for the project to compile without issues:
+
+```sh
+rustup toolchain install nightly-2023-03-20 --force
+rustup default nightly-2023-03-20-x86_64-unknown-linux-gnu
+rustup target add wasm32-unknown-unknown --toolchain nightly-2023-03-20-x86_64-unknown-linux-gnu
+```
+
 ## Build
 
 ### Locally

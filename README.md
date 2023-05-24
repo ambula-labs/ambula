@@ -69,6 +69,13 @@ To run multiple nodes and connect them together, run the following commands:
 3. You can start more nodes by using the Charlie, Dave, Ferdie and Eve predefined accounts.
    Use the same command as when running Bob's node but change `--bob` with `--charlie` for example and use a different set of ports if you are running all nodes from the same computer.
 
+## Consensus
+
+We started by adding the Proof-of-Work consensus to the node (at `consensus/pow`).  
+We then created an implementation of the Proof-of-Interaction consensus separated from the node (at `consensus/poi`).  
+
+The PoW consensus is recognized and supported by the Substrate framework through an interface that needs to be implemented. Our last task was to integrate the PoI parts into the PoW consensus interface but the strict type system of the Rust programming language made it difficult to port our current PoI code into substrate.
+
 ## Node Structure
 
 A Substrate project such as this consists of a number of components that are spread across a few directories.
